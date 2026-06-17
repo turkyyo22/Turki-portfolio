@@ -15,11 +15,9 @@ export default function SystemLogs({ dict }) {
   const params = useParams();
   const lang = params?.lang || "en";
 
-  // جلب البيانات من Firebase
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        // جلب الأخبار وترتيبها من الأحدث للأقدم
         const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
         const querySnapshot = await getDocs(q);
         const fetchedLogs = [];
@@ -71,8 +69,8 @@ export default function SystemLogs({ dict }) {
           {lang === "ar" ? "لا توجد سجلات حالياً..." : "No logs available..."}
         </div>
       ) : (
-        // عرض الأخبار الديناميكية
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+        // التعديل الأول: تغيير التخطيط من شبكة (Grid) إلى قائمة عمودية (Flex Column) مع تصغير العرض قليلاً ليكون مقروءاً
+        <div className="flex flex-col gap-8 w-full">
           {logs.map((log, index) => {
             const isExpanded = expandedLogs[log.id];
             // تحديد بيانات اللغة الحالية للخبر
@@ -85,11 +83,23 @@ export default function SystemLogs({ dict }) {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: false, amount: 0.1 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
-                className="group relative bg-glass border border-glass p-6 md:p-8 rounded-2xl hover:border-cyan/50 transition-colors duration-300 transform-gpu overflow-hidden flex flex-col"
+                className="group relative bg-glass border border-glass p-6 md:p-8 rounded-2xl hover:border-cyan/50 transition-colors duration-300 transform-gpu overflow-hidden flex flex-col w-full"
               >
                 {/* تأثير الإضاءة عند التمرير */}
                 <div className="absolute inset-0 bg-gradient-to-br from-cyan/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                 
+                {/* التعديل الثاني: الصورة في الأعلى وبعرض كامل المستطيل (إذا كانت موجودة) */}
+                {log.imageUrl && (
+                  <div className="w-full mb-6 overflow-hidden rounded-xl border border-white/10 relative z-10">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img 
+                      src={log.imageUrl} 
+                      alt={currentLangData.title} 
+                      className="w-full max-h-[400px] object-cover hover:scale-105 transition-transform duration-700 shadow-lg"
+                    />
+                  </div>
+                )}
+
                 {/* تاريخ السجل */}
                 <div className="flex justify-between items-center mb-4 relative z-10">
                   <span className="text-cyan text-xs font-mono tracking-widest border border-cyan/30 px-3 py-1 rounded-full bg-cyan/5">
@@ -97,29 +107,14 @@ export default function SystemLogs({ dict }) {
                   </span>
                 </div>
 
-                {/* تخطيط الخبر (الصورة بجانب النص أو أعلاه حسب الشاشة) */}
-                <div className="flex flex-col sm:flex-row gap-6 mb-4 relative z-10">
-                  {/* الصورة إن وجدت */}
-                  {log.imageUrl && (
-                    <div className="w-full sm:w-1/3 shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img 
-                        src={log.imageUrl} 
-                        alt={currentLangData.title} 
-                        className="w-full h-32 object-cover rounded-xl border border-white/10 shadow-lg"
-                      />
-                    </div>
-                  )}
-
-                  {/* النصوص الأساسية */}
-                  <div className="flex-1">
-                    <h4 className="text-xl font-bold text-white mb-2 tracking-wide">
-                      {currentLangData.title}
-                    </h4>
-                    <p className="text-muted text-sm leading-relaxed">
-                      {currentLangData.description}
-                    </p>
-                  </div>
+                {/* النصوص الأساسية */}
+                <div className="relative z-10 mb-2">
+                  <h4 className="text-xl md:text-2xl font-bold text-white mb-3 tracking-wide">
+                    {currentLangData.title}
+                  </h4>
+                  <p className="text-muted text-sm md:text-base leading-relaxed">
+                    {currentLangData.description}
+                  </p>
                 </div>
 
                 {/* التفاصيل الممتدة (Read More) */}
@@ -131,8 +126,8 @@ export default function SystemLogs({ dict }) {
                       exit={{ height: 0, opacity: 0 }}
                       className="relative z-10 overflow-hidden"
                     >
-                      <div className="pt-4 mt-4 border-t border-white/10">
-                        <p className="text-white/80 text-sm leading-relaxed whitespace-pre-wrap">
+                      <div className="pt-4 mt-2 border-t border-white/10">
+                        <p className="text-white/80 text-sm md:text-base leading-relaxed whitespace-pre-wrap">
                           {currentLangData.content}
                         </p>
                       </div>
@@ -144,7 +139,7 @@ export default function SystemLogs({ dict }) {
                 {log.isExpandable && (
                   <button 
                     onClick={() => toggleExpand(log.id)}
-                    className="mt-auto pt-4 flex items-center gap-2 text-cyan text-sm font-bold tracking-wider hover:text-white transition-colors relative z-10 w-fit"
+                    className="mt-6 flex items-center gap-2 text-cyan text-sm font-bold tracking-wider hover:text-white transition-colors relative z-10 w-fit"
                   >
                     {isExpanded 
                       ? (lang === "ar" ? "إخفاء التفاصيل" : "SHOW LESS") 
