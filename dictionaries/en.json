@@ -1,0 +1,68 @@
+{
+  "hero": {
+    "systemInitialized": "System Initialized",
+    "titleFirst": "Turki",
+    "titleLast": "Alofi.",
+    "description": "Software Engineer & Mobile Application Developer. Welcome to my digital workspace and portfolio command center.",
+    "button": "Initialize Logs"
+  },
+  "clock": {
+    "title": "System Time",
+    "suffix": "SEC"
+  },
+  "calendar": {
+    "session": "Active Session",
+    "loading": "LOADING_DATA..."
+  },
+  "logs": {
+    "title": "System Activity Logs",
+    "items": [
+      {
+        "date": "2026",
+        "status": "COMPLETED",
+        "title": "Student Management System",
+        "desc": "Developed and tested a comprehensive management system using JUnit and criteria-based testing models."
+      },
+      {
+        "date": "2025",
+        "status": "ONLINE",
+        "title": "Android Application",
+        "desc": "Built a native mobile application using Java and integrated Firebase for real-time database synchronization."
+      }
+    ]
+  },
+  "tech": {
+    "title": "Core Modules & Tech Stack",
+    "categories": [
+      {
+        "name": "Mobile & Architecture",
+        "skills": ["Android Studio", "Java", "Kotlin", "Firebase"]
+      },
+      {
+        "name": "Web & Frontend",
+        "skills": ["Next.js", "React", "Tailwind CSS", "Framer Motion"]
+      },
+      {
+        "name": "Testing & Workspaces",
+        "skills": ["JUnit", "Git/GitHub", "ClickUp", "VS Code"]
+      }
+    ]
+  },
+  "contact": {
+    "title": "Secure Uplink",
+    "description": "Establish a direct communication channel. Awaiting your signal...",
+    "nameLabel": "Entity Name",
+    "emailLabel": "Return Signal (Email)",
+    "messageLabel": "Encrypted Message",
+    "sendButton": "Transmit Data",
+    "social": {
+      "github": "GitHub Repository",
+      "linkedin": "LinkedIn Network"
+    }
+  },
+  "footer": {
+    "copyright": "© 2026 Turki Alofi. All rights reserved.",
+    "status": "System Status: ONLINE",
+    "version": "v1.1.0"
+  }
+}

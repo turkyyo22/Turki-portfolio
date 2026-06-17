@@ -1,26 +1,19 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --bg-deep: #050A15;
+  --glass-panel: rgba(14, 23, 42, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.05);
+  --accent-cyan: #00E5FF;
+  --accent-blue: #3B82F6;
+  --text-main: #F8FAFC;
+  --text-muted: #94A3B8;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg-deep);
+  color: var(--text-main);
+  overflow-x: hidden; /* Prevents horizontal scrolling issues with animations */
 }
