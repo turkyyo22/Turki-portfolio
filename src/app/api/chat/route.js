@@ -8,6 +8,7 @@ import { streamText } from 'ai';
 export const maxDuration = 30;
 
 export async function POST(req) {
+  console.log("هل مفتاح الذكاء الاصطناعي موجود؟", !!process.env.GOOGLE_GENERATIVE_AI_API_KEY);
   try {
     const { messages } = await req.json();
 
@@ -55,7 +56,7 @@ export async function POST(req) {
 `;
 
     const result = await streamText({
-      model: google('gemini-2.0-flash'), // أو الموديل الذي تستخدمه حالياً
+      model: google('gemini-2.5-flash'), // أو الموديل الذي تستخدمه حالياً
       system: systemPrompt,
       messages,
     });
