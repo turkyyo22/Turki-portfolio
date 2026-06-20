@@ -6,6 +6,7 @@ import Contact from "@/components/Contact";
 import NetworkBackground from "@/components/NetworkBackground";
 import ScrollToTop from "@/components/ScrollToTop";
 import Footer from "@/components/Footer";
+import AICore from "@/components/AICore";
 
 export default async function Home({ params }) {
   const { lang } = await params;
@@ -57,6 +58,11 @@ export default async function Home({ params }) {
       <Contact dict={dict.contact} />
       {/* التذييل */}
       <Footer dict={dict.footer} />
+      {/* زر الصعود للأعلى */}
+      <ScrollToTop />
+      {/* المساعد الذكي */}
+      <AICore lang={lang} />
+      
       {/* زر الصعود للأعلى */}
       <ScrollToTop />
     </main>
