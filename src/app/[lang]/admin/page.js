@@ -15,8 +15,7 @@ export default function AdminLogin() {
   const router = useRouter();
   const lang = params?.lang || "en";
 
-  // البريد الإلكتروني المخفي للمسؤول
-  const ADMIN_EMAIL = process.env.FIREBASE_ADMIN_EMAIL;
+  const ADMIN_EMAIL = process.env.NEXT_PUBLIC_FIREBASE_ADMIN_EMAIL;
 
   // دالة تسجيل الدخول عبر Firebase
   const handleLogin = async (e) => {
