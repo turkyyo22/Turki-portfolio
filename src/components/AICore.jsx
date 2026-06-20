@@ -56,22 +56,19 @@ export default function AICore({ lang }) {
     setMessages(newMessages);
     setLocalText("");
     setIsLoading(true);
-
-    try {
-      // 2. الخدعة الهندسية: تنظيف البيانات قبل الإرسال (حذف الـ id لأن Vercel ترفضه)
+try {
       const cleanMessages = newMessages.map(({ role, content }) => ({ role, content }));
 
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: cleanMessages }) // نرسل البيانات النظيفة فقط!
+        body: JSON.stringify({ messages: cleanMessages })
       });
 
+      // 1. إذا كان رد السيرفر يحتوي على خطأ 429 (انتهت الحصة)
       if (!response.ok) {
-        // قراءة رسالة الخطأ من السيرفر لمعرفة المشكلة بالتحديد
-        const errorText = await response.text();
-        console.error("Server Error Detail:", errorText);
-        throw new Error("فشل الاتصال بالخادم");
+        if (response.status === 429) throw new Error("rate_limit");
+        throw new Error("server_error");
       }
 
       const reader = response.body.getReader();
@@ -94,9 +91,35 @@ export default function AICore({ lang }) {
           return updated;
         });
       }
+
+      // 2. حماية إضافية: إذا اكتمل الاتصال ولكن الرد كان فارغاً تماماً
+      if (!aiContent.trim()) {
+         throw new Error("empty_response");
+      }
+
     } catch (error) {
       console.error("Native Chat Error:", error);
-      setMessages((prev) => [...prev, { id: Date.now().toString(), role: 'assistant', content: "عذراً، حدث خطأ في الاتصال بالخادم. يرجى التأكد من مفتاح API." }]);
+      
+      // 1. النص الجديد واللطيف لتجربة مستخدم أفضل
+      let errorMessage = "عذراً، أواجه مشكلة في الاتصال بالشبكة حالياً. يرجى المحاولة لاحقاً.";
+      
+      if (error.message === "rate_limit" || error.message === "empty_response") {
+        errorMessage = "مساعد تركي في فترة راحة قصيرة الآن ☕، يرجى المحاولة بعد دقيقة أو دقيقتين!";
+      }
+
+      setMessages((prev) => {
+        // 2. فلتر هندسي: مسح أي فقاعة محادثة فارغة للذكاء الاصطناعي لمنع التكرار
+        const cleanedMessages = prev.filter(msg => !(msg.role === 'assistant' && msg.content === ""));
+        
+        // 3. التحقق مما إذا كانت الرسالة الأخيرة هي نفس رسالة الخطأ (لمنع التكرار المطلق إذا ضغط الزائر مرتين)
+        const lastMsg = cleanedMessages[cleanedMessages.length - 1];
+        if (lastMsg && lastMsg.content === errorMessage) {
+          return cleanedMessages; // لا تضف شيئاً إذا كانت الرسالة موجودة بالفعل
+        }
+
+        // 4. إضافة رسالة الخطأ مرة واحدة وبشكل نظيف
+        return [...cleanedMessages, { id: Date.now().toString(), role: 'assistant', content: errorMessage }];
+      });
     } finally {
       setIsLoading(false);
     }
@@ -125,7 +148,7 @@ export default function AICore({ lang }) {
             <div className="bg-cyan/10 border-b border-cyan/20 p-4 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-cyan animate-pulse" />
-                <h3 className="text-white font-bold tracking-widest text-sm">T.A CORE <span className="text-cyan/50 text-xs">v1.0</span></h3>
+                <h3 className="text-white font-bold tracking-widest text-sm">T.A CORE <span className="text-cyan/50 text-xs">v1.1 BETA</span></h3>
               </div>
               <button onClick={() => setIsOpen(false)} className="text-white/50 hover:text-red-500 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
