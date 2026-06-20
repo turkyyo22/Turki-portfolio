@@ -16,7 +16,7 @@ export default function AdminLogin() {
   const lang = params?.lang || "en";
 
   // البريد الإلكتروني المخفي للمسؤول
-  const ADMIN_EMAIL = "admin@aloufi.com";
+  const ADMIN_EMAIL = process.env.FIREBASE_ADMIN_EMAIL;
 
   // دالة تسجيل الدخول عبر Firebase
   const handleLogin = async (e) => {
@@ -75,7 +75,7 @@ export default function AdminLogin() {
           </motion.div>
 
           <h1 className="text-2xl font-bold text-white tracking-widest uppercase mb-2">
-            {lang === "ar" ? "منطقة محظورة" : "Restricted Area"}
+            {lang === "ar" ? "صفحة المسؤول" : "Admin Page"}
           </h1>
           <p className="text-red-400/80 text-xs font-mono tracking-wider uppercase">
             {lang === "ar" ? "يتطلب مصادقة المسؤول" : "Admin Authentication Required"}
