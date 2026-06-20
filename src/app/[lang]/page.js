@@ -7,6 +7,7 @@ import NetworkBackground from "@/components/NetworkBackground";
 import ScrollToTop from "@/components/ScrollToTop";
 import Footer from "@/components/Footer";
 import AICore from "@/components/AICore";
+import MouseSpotlight from "@/components/MouseSpotlight";
 
 export default async function Home({ params }) {
   const { lang } = await params;
@@ -64,6 +65,10 @@ export default async function Home({ params }) {
       <AICore lang={lang} />
       
       {/* زر الصعود للأعلى */}
+      <ScrollToTop />
+      {/* المكونات السابقة... */}
+      <MouseSpotlight />
+      <AICore lang={lang} />
       <ScrollToTop />
     </main>
   );

@@ -15,7 +15,7 @@
     "loading": "LOADING_DATA..."
   },
   "logs": {
-    "title": "System Activity Logs",
+    "title": "System Activity Logs (Projects/News)",
     "items": [
       {
         "date": "2026",
@@ -63,6 +63,6 @@
   "footer": {
     "copyright": "© 2026 Turki Alofi. All rights reserved.",
     "status": "System Status: ONLINE",
-    "version": "v1.3.1"
+    "version": "v1.3.2"
   }
 }
