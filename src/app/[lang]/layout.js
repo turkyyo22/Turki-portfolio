@@ -6,10 +6,9 @@ export const metadata = {
 };
 
 export default async function RootLayout({ children, params }) {
-  // التعديل هنا أيضاً
+
   const { lang } = await params;
-  
-  // تحديد اتجاه الصفحة بناءً على اللغة
+
   const dir = lang === "ar" ? "rtl" : "ltr";
 
   return (

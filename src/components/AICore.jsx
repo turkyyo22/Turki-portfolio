@@ -46,7 +46,6 @@ export default function AICore({ lang }) {
     setIsOpen(!isOpen);
   };
 
-  // 2. المحرك الأصلي الجبار (Native Stream Engine)
  // المحرك الأصلي الجبار (Native Stream Engine)
   const executeSend = async (textToSend) => {
     if (!textToSend.trim() || isLoading) return;
