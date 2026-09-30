@@ -125,7 +125,7 @@ export default function SiteNav({ lang, dict, projectsDict }) {
                           </span>
                           <span className="block h-1 w-full rounded-full bg-white/10 overflow-hidden">
                             <span
-                              className={`block h-full rounded-full ${isComplete ? "bg-cyan" : "bg-gradient-to-r from-cyan/70 to-blue"}`}
+                              className="block h-full rounded-full bg-cyan"
                               style={{ width: `${progress}%` }}
                             />
                           </span>
