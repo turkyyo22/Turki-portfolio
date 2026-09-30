@@ -7,6 +7,15 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, addDoc, getDocs, updateDoc, doc, setDoc, getDoc, query, orderBy, deleteDoc } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
 
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const PROJECTS_DOC = () => doc(db, "settings", "projects");
+const PROGRESS_STEPS = [0, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
+
+const snapProgress = (value) => {
+  const n = Number(value) || 0;
+  return PROGRESS_STEPS.reduce((best, step) => (Math.abs(step - n) < Math.abs(best - n) ? step : best), 0);
+};
+
 export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -14,17 +23,24 @@ export default function AdminDashboard() {
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [isSkillModalOpen, setIsSkillModalOpen] = useState(false);
   const [isSocialModalOpen, setIsSocialModalOpen] = useState(false);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("ar"); 
   
   const [messages, setMessages] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [logs, setLogs] = useState([]);
   const [skills, setSkills] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [cvMeta, setCvMeta] = useState(null);
+  const [cvFile, setCvFile] = useState(null);
+  const [cvError, setCvError] = useState("");
   const [socialData, setSocialData] = useState({ github: "", linkedin: "", phone: "", email: "", whatsapp: "" });
 
   // تتبع العناصر التي يتم تعديلها
   const [editingLogId, setEditingLogId] = useState(null);
   const [editingSkillId, setEditingSkillId] = useState(null);
+  const [editingProjectId, setEditingProjectId] = useState(null);
+  const [projectSaveError, setProjectSaveError] = useState("");
 
   const router = useRouter();
   const params = useParams();
@@ -37,11 +53,13 @@ export default function AdminDashboard() {
     isExpandable: true, 
     image: null, 
     imageUrl: "", // للاحتفاظ برابط الصورة القديمة عند التعديل
+    slug: "",
     ar: { title: "", description: "", content: "" }, 
     en: { title: "", description: "", content: "" } 
   });
   
   const [skillData, setSkillData] = useState({ order: 1, arTitle: "", enTitle: "", itemsStr: "" });
+  const [projectData, setProjectData] = useState({ order: 1, arName: "", enName: "", progress: 100, slug: "" });
 
   const formatDate = (dateString) => {
     if (!dateString) return "";
@@ -71,6 +89,13 @@ export default function AdminDashboard() {
 
       const socialDoc = await getDoc(doc(db, "settings", "socials"));
       if (socialDoc.exists()) setSocialData(socialDoc.data());
+
+      const projectDoc = await getDoc(PROJECTS_DOC());
+      const fetchedProjects = Array.isArray(projectDoc.data()?.items) ? projectDoc.data().items : [];
+      setProjects([...fetchedProjects].sort((a, b) => (a.order || 0) - (b.order || 0)));
+
+      const cvDoc = await getDoc(doc(db, "settings", "cv"));
+      setCvMeta(cvDoc.exists() ? cvDoc.data() : null);
 
     } catch (error) {
       console.error("Error fetching data: ", error);
@@ -108,7 +133,8 @@ export default function AdminDashboard() {
       date: log.date || getTodayDate(),
       isExpandable: log.isExpandable || false,
       image: null,
-      imageUrl: log.imageUrl || "", 
+      imageUrl: log.imageUrl || "",
+      slug: log.slug || "",
       ar: log.ar || { title: "", description: "", content: "" },
       en: log.en || { title: "", description: "", content: "" }
     });
@@ -130,7 +156,7 @@ export default function AdminDashboard() {
   // إعادة تعيين النماذج للإضافة الجديدة
   const openNewLogModal = () => {
     setEditingLogId(null);
-    setLogData({ date: getTodayDate(), isExpandable: true, image: null, imageUrl: "", ar: { title: "", description: "", content: "" }, en: { title: "", description: "", content: "" } });
+    setLogData({ date: getTodayDate(), isExpandable: true, image: null, imageUrl: "", slug: "", ar: { title: "", description: "", content: "" }, en: { title: "", description: "", content: "" } });
     setIsLogModalOpen(true);
   };
 
@@ -150,7 +176,18 @@ export default function AdminDashboard() {
 
   // تعديل أو إضافة السجلات
   const handleLogSubmit = async (e) => {
-    e.preventDefault(); setIsSubmitting(true);
+    e.preventDefault();
+    const slug = logData.slug.trim().toLowerCase();
+    if (!SLUG_PATTERN.test(slug)) {
+      alert("Unique tag must use lowercase letters, numbers, and hyphens. Example: coop or munset.");
+      return;
+    }
+    if (logs.some((log) => log.slug === slug && log.id !== editingLogId)) {
+      alert("This unique tag is already used by another log.");
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       let finalImageUrl = logData.imageUrl; // نستخدم الصورة القديمة مبدئياً
       
@@ -171,7 +208,8 @@ export default function AdminDashboard() {
       const postPayload = { 
         date: logData.date || getTodayDate(), 
         imageUrl: finalImageUrl, 
-        isExpandable: logData.isExpandable, 
+        isExpandable: logData.isExpandable,
+        slug,
         ar: logData.ar, 
         en: logData.en
       };
@@ -210,6 +248,126 @@ export default function AdminDashboard() {
       setEditingSkillId(null);
       fetchData(); 
     } catch (e) { console.error(e); alert("Error"); } finally { setIsSubmitting(false); }
+  };
+
+  const saveProjects = async (nextItems) => {
+    const items = nextItems.map((item, index) => ({ ...item, order: index + 1 }));
+    await setDoc(PROJECTS_DOC(), { items });
+    setProjects(items);
+  };
+
+  const openNewProjectModal = () => {
+    setEditingProjectId(null);
+    setProjectSaveError("");
+    setProjectData({ order: projects.length + 1, arName: "", enName: "", progress: 100, slug: "" });
+    setIsProjectModalOpen(true);
+  };
+
+  const handleEditProject = (project) => {
+    setEditingProjectId(project.id);
+    setProjectSaveError("");
+    setProjectData({
+      order: project.order || 1,
+      arName: project.arName || "",
+      enName: project.enName || "",
+      progress: snapProgress(project.progress),
+      slug: project.slug || "",
+    });
+    setIsProjectModalOpen(true);
+  };
+
+  const handleDeleteProject = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this project?")) return;
+    try {
+      await saveProjects(projects.filter((project) => project.id !== id));
+    } catch (error) {
+      console.error("Error deleting project:", error);
+      alert(error?.code === "permission-denied"
+        ? "Firebase blocked this write. The projects list is stored in settings/projects — allow authenticated writes on /settings/{document}."
+        : "Error deleting project");
+    }
+  };
+
+  const handleProjectSubmit = async (e) => {
+    e.preventDefault();
+    const slug = projectData.slug.trim().toLowerCase();
+    const progress = snapProgress(projectData.progress);
+    setProjectSaveError("");
+    if (slug && !SLUG_PATTERN.test(slug)) {
+      setProjectSaveError("Log tag must use lowercase letters, numbers, and hyphens, or stay empty.");
+      return;
+    }
+    if (slug && projects.some((project) => project.slug === slug && project.id !== editingProjectId)) {
+      setProjectSaveError("Another project already uses this log tag.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const nextProject = {
+        id: editingProjectId || crypto.randomUUID(),
+        arName: projectData.arName.trim(),
+        enName: projectData.enName.trim(),
+        progress,
+        slug,
+      };
+      const nextItems = editingProjectId
+        ? projects.map((project) => (project.id === editingProjectId ? { ...project, ...nextProject } : project))
+        : [...projects, nextProject];
+      await saveProjects(nextItems);
+      setIsProjectModalOpen(false);
+      setEditingProjectId(null);
+    } catch (error) {
+      console.error(error);
+      setProjectSaveError(
+        error?.code === "permission-denied"
+          ? "Firebase blocked the save (missing permissions on settings/projects). In Firestore rules, allow signed-in writes to /settings/{document}."
+          : (error?.message || "Error saving project")
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCvUpload = async (e) => {
+    e.preventDefault();
+    setCvError("");
+    if (!cvFile) {
+      setCvError("Choose a PDF first.");
+      return;
+    }
+    const isPdf = cvFile.type === "application/pdf" || cvFile.name.toLowerCase().endsWith(".pdf");
+    if (!isPdf) {
+      setCvError("Please choose a PDF file.");
+      return;
+    }
+    if (cvFile.size > 700 * 1024) {
+      setCvError("This PDF is too large. Keep it under 700KB.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(cvFile);
+      });
+      const meta = {
+        url: dataUrl,
+        fileName: cvFile.name,
+        updatedAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, "settings", "cv"), meta);
+      setCvMeta(meta);
+      setCvFile(null);
+    } catch (error) {
+      console.error(error);
+      setCvError(error?.message || "CV publish failed.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSocialSubmit = async (e) => {
@@ -273,7 +431,7 @@ export default function AdminDashboard() {
               <div key={log.id} className="bg-black/40 p-3 rounded-lg border border-white/5 flex justify-between items-center group">
                 <div className="truncate pr-4 flex-1">
                   <p className="text-sm font-bold truncate text-white">{lang === "ar" ? log.ar?.title : log.en?.title}</p>
-                  <p className="text-xs text-cyan font-mono">{formatDate(log.date)}</p>
+                  <p className="text-xs text-cyan font-mono">{formatDate(log.date)}{log.slug ? ` · #${log.slug}` : " · no tag"}</p>
                 </div>
                 <div className="flex gap-2">
                   {/* زر التعديل */}
@@ -316,6 +474,53 @@ export default function AdminDashboard() {
           </div>
         </section>
 
+        <section className="bg-glass border border-white/10 rounded-2xl p-6 flex flex-col h-[400px]">
+          <div className="flex justify-between mb-4 border-b border-white/10 pb-4">
+            <h2 className="font-semibold tracking-wide">Projects</h2>
+            <button onClick={openNewProjectModal} className="bg-cyan text-black px-3 py-1 rounded hover:bg-cyan/80 text-sm font-bold">+ Add</button>
+          </div>
+          <div className="overflow-y-auto custom-scrollbar flex-1 pr-2 flex flex-col gap-3">
+            {projects.length === 0 ? <p className="text-white/30 text-sm text-center mt-4">No projects yet.</p> : projects.map(project => (
+              <div key={project.id} className="bg-black/40 p-3 rounded-lg border border-white/5 flex justify-between items-center">
+                <div className="truncate pr-4 flex-1">
+                  <p className="text-sm font-bold truncate text-white">{project.enName}</p>
+                  <p className="text-xs text-cyan font-mono">{project.progress}%{project.slug ? ` · #${project.slug}` : ""}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleEditProject(project)} className="text-cyan/70 hover:text-cyan transition-colors" title="Edit">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>
+                  </button>
+                  <button onClick={() => handleDeleteProject(project.id)} className="text-red-500/50 hover:text-red-500 transition-colors" title="Delete">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="bg-glass border border-white/10 rounded-2xl p-6 flex flex-col">
+          <h2 className="font-semibold tracking-wide mb-4 border-b border-white/10 pb-4">CV (PDF)</h2>
+          <p className="text-white/50 text-sm font-mono mb-4 truncate">{cvMeta?.fileName || "No CV published yet."}</p>
+          <form onSubmit={handleCvUpload} className="flex flex-col gap-3">
+            <input
+              type="file"
+              accept="application/pdf,.pdf"
+              onChange={(e) => {
+                setCvError("");
+                setCvFile(e.target.files?.[0] || null);
+              }}
+              className="text-sm text-white/50 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-cyan/10 file:text-cyan hover:file:bg-cyan/20 cursor-pointer"
+            />
+            {cvFile && <p className="text-cyan text-xs font-mono truncate">Selected: {cvFile.name}</p>}
+            {cvError && <p className="text-red-400 text-xs font-mono">{cvError}</p>}
+            <button type="submit" disabled={isSubmitting || !cvFile} className="bg-cyan text-black px-3 py-2 rounded text-sm font-bold disabled:opacity-40">
+              {isSubmitting ? "Publishing..." : (cvMeta?.url ? "Replace CV" : "Publish CV")}
+            </button>
+          </form>
+          <p className="text-white/30 text-xs font-mono mt-3">The PDF is saved with your other settings. Visitors can view and download the same file.</p>
+        </section>
+
         <section className="bg-glass border border-white/10 rounded-2xl p-6 flex flex-col">
           <div className="flex justify-between mb-4 border-b border-white/10 pb-4">
             <h2 className="font-semibold tracking-wide">Social & Links</h2>
@@ -351,6 +556,18 @@ export default function AdminDashboard() {
                     <input type="file" accept="image/*" onChange={e => setLogData({...logData, image: e.target.files[0]})} className="text-sm text-white/50 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-cyan/10 file:text-cyan hover:file:bg-cyan/20 cursor-pointer" />
                     {editingLogId && logData.imageUrl && !logData.image && <span className="text-xs text-green-400 font-mono">Image exists. Upload new to replace.</span>}
                   </div>
+                  <div className="col-span-2">
+                    <label className="text-xs text-cyan font-mono">UNIQUE TAG</label>
+                    <input
+                      type="text"
+                      value={logData.slug}
+                      onChange={e => setLogData({...logData, slug: e.target.value})}
+                      placeholder="coop, munset, car-rental"
+                      className="w-full bg-black/50 border border-white/10 rounded-lg p-2 mt-1 text-white font-mono"
+                      required
+                    />
+                    <p className="text-white/40 text-xs font-mono mt-1">Used for navigation. Tag the coop log exactly <span className="text-cyan">coop</span> so the Coop link can find it. A finished project links here when it uses the same tag and is at 100%.</p>
+                  </div>
                   <div className="col-span-2 flex items-center gap-3"><input type="checkbox" id="exp" checked={logData.isExpandable} onChange={e => setLogData({...logData, isExpandable: e.target.checked})} /><label htmlFor="exp" className="text-sm">Enable Expand</label></div>
                 </div>
                 <div className="flex border-b border-white/10"><button type="button" onClick={() => setActiveTab("ar")} className={`flex-1 py-3 ${activeTab==="ar"?"text-cyan border-b-2 border-cyan":"text-white/50"}`}>AR</button><button type="button" onClick={() => setActiveTab("en")} className={`flex-1 py-3 ${activeTab==="en"?"text-cyan border-b-2 border-cyan":"text-white/50"}`}>EN</button></div>
@@ -383,6 +600,51 @@ export default function AdminDashboard() {
                 <textarea placeholder="Skills (comma separated)" value={skillData.itemsStr} onChange={e => setSkillData({...skillData, itemsStr: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white h-24" required />
                 <button type="submit" disabled={isSubmitting} className="w-full py-4 bg-cyan/10 text-cyan font-bold rounded-lg border border-cyan/50 hover:bg-cyan hover:text-black">
                   {editingSkillId ? "UPDATE CATEGORY" : "SAVE CATEGORY"}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isProjectModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-2xl bg-[#0a0a0a] border border-cyan/30 rounded-2xl p-6 shadow-2xl">
+              <div className="flex justify-between mb-6"><h3 className="text-2xl font-bold">{editingProjectId ? "Edit Project" : "Add Project"}</h3><button onClick={() => setIsProjectModalOpen(false)} className="text-white/50 hover:text-red-500">✖</button></div>
+              <form onSubmit={handleProjectSubmit} className="space-y-5">
+                <div className="grid grid-cols-2 gap-4">
+                  <input type="text" placeholder="Arabic name" value={projectData.arName} onChange={e => setProjectData({...projectData, arName: e.target.value})} className="bg-black/50 border border-white/10 rounded-lg p-3 text-white" required />
+                  <input type="text" placeholder="English name" value={projectData.enName} onChange={e => setProjectData({...projectData, enName: e.target.value})} className="bg-black/50 border border-white/10 rounded-lg p-3 text-white" required />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs text-cyan font-mono">PROGRESS</label>
+                    <span className="text-cyan font-mono text-sm">{snapProgress(projectData.progress)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max={PROGRESS_STEPS.length - 1}
+                    step="1"
+                    value={Math.max(0, PROGRESS_STEPS.indexOf(snapProgress(projectData.progress)))}
+                    onChange={(e) => setProjectData({ ...projectData, progress: PROGRESS_STEPS[Number(e.target.value)] })}
+                    className="w-full accent-cyan cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-white/30 font-mono mt-1">
+                    <span>0</span>
+                    <span>50</span>
+                    <span>100</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-cyan font-mono">LOG TAG (optional)</label>
+                  <input type="text" placeholder="Same tag as the published log, e.g. munset" value={projectData.slug} onChange={e => setProjectData({...projectData, slug: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-lg p-3 mt-1 text-white font-mono" />
+                  <p className="text-white/40 text-xs font-mono mt-1">The name becomes a link only when progress is 100 and a log with this exact tag exists.</p>
+                </div>
+                {projectSaveError && <p className="text-red-400 text-sm font-mono">{projectSaveError}</p>}
+                <button type="submit" disabled={isSubmitting} className="w-full py-4 bg-cyan/10 text-cyan font-bold rounded-lg border border-cyan/50 hover:bg-cyan hover:text-black disabled:opacity-50">
+                  {isSubmitting ? "SAVING..." : (editingProjectId ? "UPDATE PROJECT" : "SAVE PROJECT")}
                 </button>
               </form>
             </motion.div>

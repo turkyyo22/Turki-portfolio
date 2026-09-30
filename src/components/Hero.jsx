@@ -3,15 +3,13 @@
 import { motion } from "framer-motion";
 import ClockWidget from "./ClockWidget";
 import CalendarWidget from "./CalendarWidget";
+import { scrollToId } from "@/lib/smoothScroll";
 
 export default function Hero({ dict, lang }) {
   
   // دالة النزول السلس إلى قسم السجلات
   const scrollToLogs = () => {
-    const logsSection = document.getElementById("logs");
-    if (logsSection) {
-      logsSection.scrollIntoView({ behavior: "smooth" });
-    }
+    scrollToId("logs");
   };
 
   return (

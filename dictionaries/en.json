@@ -60,6 +60,26 @@
       "linkedin": "LinkedIn Network"
     }
   },
+  "nav": {
+    "home": "Home",
+    "logs": "Logs",
+    "coop": "Coop",
+    "cv": "CV",
+    "projects": "Projects",
+    "tech": "Tech",
+    "contact": "Contact"
+  },
+  "cvProjects": {
+    "cvTitle": "Resume",
+    "view": "View CV",
+    "download": "Download PDF",
+    "close": "Close",
+    "emptyCv": "CV is not published yet.",
+    "projectsTitle": "Projects",
+    "completed": "Completed",
+    "inProgress": "In Progress",
+    "emptyProjects": "No projects published yet."
+  },
   "footer": {
     "copyright": "© 2026 Turki Alofi. All rights reserved.",
     "status": "System Status: ONLINE",

@@ -60,6 +60,26 @@
       "linkedin": "شبكة LinkedIn"
     }
   },
+  "nav": {
+    "home": "الرئيسية",
+    "logs": "السجلات",
+    "coop": "التدريب",
+    "cv": "السيرة",
+    "projects": "المشاريع",
+    "tech": "التقنيات",
+    "contact": "التواصل"
+  },
+  "cvProjects": {
+    "cvTitle": "السيرة الذاتية",
+    "view": "عرض السيرة",
+    "download": "تحميل PDF",
+    "close": "إغلاق",
+    "emptyCv": "السيرة الذاتية غير منشورة بعد.",
+    "projectsTitle": "المشاريع",
+    "completed": "مكتمل",
+    "inProgress": "قيد التنفيذ",
+    "emptyProjects": "لا توجد مشاريع منشورة بعد."
+  },
   "footer": {
     "copyright": "© 2026 تركي العوفي. جميع الحقوق محفوظة.",
     "status": "حالة النظام: متصل",

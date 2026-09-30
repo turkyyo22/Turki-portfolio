@@ -83,11 +83,12 @@ export default function SystemLogs({ dict }) {
               return (
                 <motion.div
                   key={log.id}
+                  id={log.slug ? `log-${log.slug}` : undefined}
                   initial={{ opacity: 0, y: 30 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: false, amount: 0.1 }}
                   transition={{ duration: 0.5, delay: index * 0.1 }}
-                  className="group relative bg-glass border border-glass rounded-2xl hover:border-cyan/50 transition-colors duration-300 transform-gpu overflow-hidden flex flex-col w-full"
+                  className="group relative bg-glass border border-glass rounded-2xl hover:border-cyan/50 transition-colors duration-300 transform-gpu overflow-hidden flex flex-col w-full scroll-mt-28"
                 >
                   <div className="absolute inset-0 bg-gradient-to-br from-cyan/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                   

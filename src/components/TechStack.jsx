@@ -39,7 +39,7 @@ export default function TechStack({ dict }) {
   if (!dict) return null;
 
   return (
-    <section className="w-full max-w-7xl mx-auto mt-20 z-10 relative px-4 md:px-0">
+    <section id="tech" className="w-full max-w-7xl mx-auto mt-20 z-10 relative px-4 md:px-0">
       
       {/* عنوان القسم */}
       <div className="flex items-center gap-4 mb-12 flex-row-reverse md:flex-row">
