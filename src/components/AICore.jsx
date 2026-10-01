@@ -3,9 +3,66 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
+const QUESTIONS = {
+  ar: [
+    "ما المناصب التي يناسبها تركي؟ 💼",
+    "ما المشاريع التي يعمل عليها حالياً؟ 🚀",
+    "هل يناسبه العمل خارج جدة؟ 📍",
+    "متى يمكنه بدء العمل؟ 📅",
+    "هل يفضّل الإدارة أم التطوير؟ 🧭",
+    "حدثني عن مشروع سبع ثوانٍ 📄",
+    "ما أبرز مهاراته التقنية؟ 💻",
+    "ما نقاط قوته؟ 💪",
+    "ما نقاط ضعفه؟ 🎯",
+    "تركي والهاردوير ⚙️",
+    "كيف أتواصل معه؟ ✉️"
+  ],
+  en: [
+    "What roles is he a fit for? 💼",
+    "What is he working on right now? 🚀",
+    "Is he open to working outside Jeddah? 📍",
+    "When can he start? 📅",
+    "Does he prefer management or engineering? 🧭",
+    "Tell me about Seven Seconds 📄",
+    "What are his main tech skills? 💻",
+    "What are his strengths? 💪",
+    "What are his weaknesses? 🎯",
+    "Turki and Hardware ⚙️",
+    "How can I contact him? ✉️"
+  ],
+};
+
+function pickThree(pool, exclude = []) {
+  const blocked = new Set(exclude.filter(Boolean));
+  let available = pool.filter((question) => !blocked.has(question));
+  if (available.length < 3) {
+    available = pool.filter((question) => question !== exclude[0]);
+  }
+  return [...available].sort(() => Math.random() - 0.5).slice(0, 3);
+}
+
+function SuggestionList({ questions, round, onPick }) {
+  return (
+    <div className="flex flex-col items-stretch gap-3 w-full">
+      {questions.map((question, index) => (
+        <motion.div key={`${round}-${question}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.1 }}>
+          <button
+            type="button"
+            onClick={() => onPick(question)}
+            className="group w-full text-xs sm:text-sm text-cyan/90 bg-white/[0.03] border border-cyan/25 px-4 py-3 rounded-xl text-center transition-all duration-200 hover:bg-cyan hover:text-[#050a15] hover:border-cyan hover:font-semibold hover:shadow-[0_0_18px_rgba(0,229,255,0.35)] active:scale-[0.98]"
+          >
+            {question}
+          </button>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
 export default function AICore({ lang }) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentSuggestions, setCurrentSuggestions] = useState([]);
+  const [suggestionRound, setSuggestionRound] = useState(0);
   const messagesEndRef = useRef(null);
 
   // 1. نظام الـ State المستقل بالكامل (بدون أي مكتبات خارجية)
@@ -15,33 +72,18 @@ export default function AICore({ lang }) {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, currentSuggestions, isLoading]);
 
-  const allQuestionsAr = [
-    "من هو تركي؟ 🧐",
-    "ما هي أبرز تقنيات تركي؟ 💻",
-    "حدثني عن تطبيق منصت 📱",
-    "كيف يمكنني التواصل معه؟ ✉️",
-    "ماهي هواياته بعيداً عن البرمجة؟ 🎮",
-    "كم عمره؟ 🎂",
-    "تركي والهاردوير ⚙️"
-  ];
+  const pool = lang === "ar" ? QUESTIONS.ar : QUESTIONS.en;
 
-  const allQuestionsEn = [
-    "Who is Turki? 🧐",
-    "What are his main tech skills? 💻",
-    "Tell me about Mnsat project 📱",
-    "How can I contact him? ✉️",
-    "What are his hobbies? 🎮",
-    "How old is he? 🎂",
-    "Turki and Hardware ⚙️"
-  ];
+  const showNextSuggestions = (exclude = []) => {
+    setSuggestionRound((round) => round + 1);
+    setCurrentSuggestions(pickThree(pool, exclude));
+  };
 
   const toggleChat = () => {
     if (!isOpen && messages.length === 0) {
-      const pool = lang === "ar" ? allQuestionsAr : allQuestionsEn;
-      const shuffled = [...pool].sort(() => 0.5 - Math.random());
-      setCurrentSuggestions(shuffled.slice(0, 3));
+      showNextSuggestions();
     }
     setIsOpen(!isOpen);
   };
@@ -52,8 +94,10 @@ export default function AICore({ lang }) {
 
     // 1. إضافة الرسالة للواجهة (مع الـ id لكي يعمل العرض بشكل سليم)
     const newMessages = [...messages, { id: Date.now().toString(), role: 'user', content: textToSend }];
+    const shownSuggestions = currentSuggestions;
     setMessages(newMessages);
     setLocalText("");
+    setCurrentSuggestions([]);
     setIsLoading(true);
 try {
       const cleanMessages = newMessages.map(({ role, content }) => ({ role, content }));
@@ -120,6 +164,7 @@ try {
         return [...cleanedMessages, { id: Date.now().toString(), role: 'assistant', content: errorMessage }];
       });
     } finally {
+      showNextSuggestions([textToSend, ...shownSuggestions]);
       setIsLoading(false);
     }
   };
@@ -156,7 +201,7 @@ try {
                   <span className="absolute inline-flex h-full w-full rounded-full bg-cyan opacity-60 animate-ping" />
                   <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-cyan" />
                 </span>
-                <h3 className="text-white font-bold tracking-widest text-sm">T.A CORE <span className="text-cyan/60 text-[10px] font-mono align-middle ml-1">v1.1 BETA</span></h3>
+                <h3 className="text-white font-bold tracking-widest text-sm">T.A CORE <span className="text-cyan/60 text-[10px] font-mono align-middle ml-1">v1.2</span></h3>
               </div>
               <button
                 type="button"
@@ -180,19 +225,7 @@ try {
                       : "System Ready. You can ask me anything or use a quick command:"}
                   </div>
                   
-                  <div className="flex flex-col items-stretch gap-3 w-full px-2">
-                    {currentSuggestions.map((q, i) => (
-                      <motion.div key={q} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
-                        <button
-                          type="button" 
-                          onClick={() => handleSuggestionClick(q)}
-                          className="group w-full text-xs sm:text-sm text-cyan/90 bg-white/[0.03] border border-cyan/25 px-4 py-3 rounded-xl text-center transition-all duration-200 hover:bg-cyan hover:text-[#050a15] hover:border-cyan hover:font-semibold hover:shadow-[0_0_18px_rgba(0,229,255,0.35)] active:scale-[0.98]"
-                        >
-                          {q}
-                        </button>
-                      </motion.div>
-                    ))}
-                  </div>
+                  <SuggestionList questions={currentSuggestions} round={suggestionRound} onPick={handleSuggestionClick} />
                 </div>
               ) : (
                 messages.map((m) => (
@@ -204,6 +237,10 @@ try {
                 ))
               )}
               
+              {!isLoading && messages.length > 0 && (
+                <SuggestionList questions={currentSuggestions} round={suggestionRound} onPick={handleSuggestionClick} />
+              )}
+
               {isLoading && (
                 <div className="flex justify-start">
                   <div className="bg-white/[0.06] border border-white/10 px-4 py-3 rounded-2xl rounded-bl-sm flex gap-1.5">
