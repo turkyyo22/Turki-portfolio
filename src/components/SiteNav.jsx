@@ -7,7 +7,7 @@ import { clearHash, scrollToId, scrollToY } from "@/lib/smoothScroll";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 
 const itemClass =
-  "shrink-0 text-xs sm:text-sm font-bold tracking-wider uppercase text-white/80 px-3 py-1.5 rounded-lg transition-all duration-200 hover:text-cyan hover:bg-cyan/15 hover:shadow-[0_0_16px_rgba(0,229,255,0.35)] active:scale-95";
+  "shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold tracking-wider uppercase text-white/80 px-2 sm:px-3 py-1.5 rounded-lg transition-all duration-200 hover:text-cyan hover:bg-cyan/15 hover:shadow-[0_0_16px_rgba(0,229,255,0.35)] active:scale-95";
 
 export default function SiteNav({ lang, dict, projectsDict }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -71,8 +71,8 @@ export default function SiteNav({ lang, dict, projectsDict }) {
 
   return (
     <nav className="fixed top-0 inset-x-0 z-40 px-3 sm:px-6 pt-3">
-      <div className="max-w-7xl mx-auto flex items-center gap-3 rounded-2xl border border-white/10 bg-[#050A15]/75 backdrop-blur-xl px-3 sm:px-4 py-2.5 shadow-[0_0_30px_rgba(0,229,255,0.08)]">
-        <div className="flex items-center gap-3 shrink-0">
+      <div className="max-w-7xl mx-auto flex min-w-0 items-center gap-2 sm:gap-3 rounded-2xl border border-white/10 bg-[#050A15]/75 backdrop-blur-xl px-2 sm:px-4 py-2.5 shadow-[0_0_30px_rgba(0,229,255,0.08)]">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button type="button" onClick={() => scrollToY(0)} className="font-bold text-lg tracking-wider text-white transition-all duration-200 hover:text-cyan hover:drop-shadow-[0_0_8px_rgba(0,229,255,0.6)] active:scale-90">T.A</button>
           <Link
             href={`/${lang}/admin`}
@@ -86,11 +86,12 @@ export default function SiteNav({ lang, dict, projectsDict }) {
           </Link>
         </div>
 
-        <div className="flex flex-1 items-center gap-1">
+        <div className="relative flex min-w-0 flex-1 items-center" ref={menuRef}>
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button type="button" onClick={() => goTo("cv")} className={itemClass}>{dict.cv}</button>
           <button type="button" onClick={() => goTo("log-coop", "logs")} className={itemClass}>{dict.coop}</button>
 
-          <div className="relative" ref={menuRef}>
+          <div className="relative">
             <button
               type="button"
               aria-expanded={isOpen}
@@ -102,9 +103,11 @@ export default function SiteNav({ lang, dict, projectsDict }) {
                 <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
               </svg>
             </button>
+          </div>
+          </div>
 
             {isOpen && (
-              <div className="absolute top-full mt-3 w-72 start-0 rounded-xl border border-cyan/20 bg-[#050A15]/95 backdrop-blur-xl p-3 shadow-[0_0_24px_rgba(0,229,255,0.18)]">
+              <div className="absolute top-full z-50 mt-3 w-72 max-w-[calc(100vw-1.5rem)] start-0 rounded-xl border border-cyan/20 bg-[#050A15]/95 backdrop-blur-xl p-3 shadow-[0_0_24px_rgba(0,229,255,0.18)]">
                 {projects.length === 0 ? (
                   <p className="text-white/40 text-xs font-mono text-center py-4">{projectsDict?.emptyProjects}</p>
                 ) : (
@@ -148,12 +151,11 @@ export default function SiteNav({ lang, dict, projectsDict }) {
                 )}
               </div>
             )}
-          </div>
         </div>
 
         <Link
           href={toggleLang}
-          className="shrink-0 text-cyan text-xs sm:text-sm font-mono border border-cyan/50 px-3 py-1.5 rounded-lg bg-glass backdrop-blur-md transition-all duration-200 hover:bg-cyan/15 hover:shadow-[0_0_16px_rgba(0,229,255,0.35)]"
+          className="shrink-0 whitespace-nowrap text-cyan text-xs sm:text-sm font-mono border border-cyan/50 px-2 sm:px-3 py-1.5 rounded-lg bg-glass backdrop-blur-md transition-all duration-200 hover:bg-cyan/15 hover:shadow-[0_0_16px_rgba(0,229,255,0.35)]"
         >
           {toggleText}
         </Link>
