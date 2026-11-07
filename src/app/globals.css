@@ -22,3 +22,43 @@ body {
 [id] {
   scroll-margin-top: 6.5rem;
 }
+
+/* A visible focus ring for keyboard users, without showing it on mouse clicks */
+:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+/* Loading placeholder for images */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.08), transparent);
+  animation: shimmer 1.6s infinite;
+}
+
+/* Honour the visitor's "reduce motion" setting for CSS animations too */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

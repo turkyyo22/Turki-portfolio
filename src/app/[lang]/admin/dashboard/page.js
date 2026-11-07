@@ -6,6 +6,10 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, addDoc, getDocs, updateDoc, doc, setDoc, getDoc, query, orderBy, deleteDoc } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
+import AssistantSettings from "@/components/admin/AssistantSettings";
+import { refreshPublicSite, uploadProjectImage } from "@/lib/adminApi";
+import { normalizeTags, safeUrl } from "@/lib/content/normalize";
+import { compressImage } from "@/lib/imageCompression";
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const PROJECTS_DOC = () => doc(db, "settings", "projects");
@@ -48,15 +52,19 @@ export default function AdminDashboard() {
 
   const getTodayDate = () => new Date().toISOString().split("T")[0];
 
-  const [logData, setLogData] = useState({ 
-    date: getTodayDate(), 
-    isExpandable: true, 
-    image: null, 
+  const emptyLog = () => ({
+    date: getTodayDate(),
+    isExpandable: true,
+    image: null,
     imageUrl: "", // للاحتفاظ برابط الصورة القديمة عند التعديل
     slug: "",
-    ar: { title: "", description: "", content: "" }, 
-    en: { title: "", description: "", content: "" } 
+    tagsStr: "",
+    githubUrl: "",
+    liveUrl: "",
+    ar: { title: "", description: "", content: "" },
+    en: { title: "", description: "", content: "" }
   });
+  const [logData, setLogData] = useState(emptyLog);
   
   const [skillData, setSkillData] = useState({ order: 1, arTitle: "", enTitle: "", itemsStr: "" });
   const [projectData, setProjectData] = useState({ order: 1, arName: "", enName: "", progress: 100, slug: "" });
@@ -113,7 +121,7 @@ export default function AdminDashboard() {
   const handleDeleteLog = async (id) => {
     const confirmDelete = window.confirm("Are you sure you want to delete this log?");
     if (confirmDelete) {
-      try { await deleteDoc(doc(db, "posts", id)); setLogs(logs.filter(log => log.id !== id)); } 
+      try { await deleteDoc(doc(db, "posts", id)); setLogs(logs.filter(log => log.id !== id)); refreshPublicSite(); }
       catch (error) { console.error("Error deleting log:", error); }
     }
   };
@@ -121,7 +129,7 @@ export default function AdminDashboard() {
   const handleDeleteSkill = async (id) => {
     const confirmDelete = window.confirm("Are you sure you want to delete this category?");
     if (confirmDelete) {
-      try { await deleteDoc(doc(db, "skills", id)); setSkills(skills.filter(skill => skill.id !== id)); } 
+      try { await deleteDoc(doc(db, "skills", id)); setSkills(skills.filter(skill => skill.id !== id)); refreshPublicSite(); }
       catch (error) { console.error("Error deleting skill:", error); }
     }
   };
@@ -135,6 +143,9 @@ export default function AdminDashboard() {
       image: null,
       imageUrl: log.imageUrl || "",
       slug: log.slug || "",
+      tagsStr: normalizeTags(log.tags).join(", "),
+      githubUrl: log.githubUrl || "",
+      liveUrl: log.liveUrl || "",
       ar: log.ar || { title: "", description: "", content: "" },
       en: log.en || { title: "", description: "", content: "" }
     });
@@ -156,7 +167,7 @@ export default function AdminDashboard() {
   // إعادة تعيين النماذج للإضافة الجديدة
   const openNewLogModal = () => {
     setEditingLogId(null);
-    setLogData({ date: getTodayDate(), isExpandable: true, image: null, imageUrl: "", slug: "", ar: { title: "", description: "", content: "" }, en: { title: "", description: "", content: "" } });
+    setLogData(emptyLog());
     setIsLogModalOpen(true);
   };
 
@@ -187,30 +198,33 @@ export default function AdminDashboard() {
       return;
     }
 
+    for (const [label, value] of [["GitHub", logData.githubUrl], ["Live demo", logData.liveUrl]]) {
+      if (value.trim() && !safeUrl(value)) {
+        alert(`The ${label} link must be a full URL starting with https://`);
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       let finalImageUrl = logData.imageUrl; // نستخدم الصورة القديمة مبدئياً
-      
-      // إذا تم اختيار صورة جديدة، ارفعها واستبدل الرابط القديم
-      if (logData.image) { 
-        const formData = new FormData();
-        formData.append("image", logData.image);
-        const imgbbRes = await fetch(`https://api.imgbb.com/1/upload?key=${process.env.NEXT_PUBLIC_IMGBB_API_KEY}`, {
-          method: "POST",
-          body: formData,
-        });
-        const imgbbData = await imgbbRes.json();
-        if (imgbbData.success) {
-          finalImageUrl = imgbbData.data.url; 
-        }
+
+      // A new image is shrunk in the browser, then uploaded through the server
+      // (which holds the imgbb key). If the upload fails, nothing is saved.
+      if (logData.image) {
+        const compressed = await compressImage(logData.image);
+        finalImageUrl = await uploadProjectImage(compressed);
       }
 
-      const postPayload = { 
-        date: logData.date || getTodayDate(), 
-        imageUrl: finalImageUrl, 
+      const postPayload = {
+        date: logData.date || getTodayDate(),
+        imageUrl: finalImageUrl,
         isExpandable: logData.isExpandable,
         slug,
-        ar: logData.ar, 
+        tags: normalizeTags(logData.tagsStr),
+        githubUrl: safeUrl(logData.githubUrl),
+        liveUrl: safeUrl(logData.liveUrl),
+        ar: logData.ar,
         en: logData.en
       };
 
@@ -223,10 +237,11 @@ export default function AdminDashboard() {
         alert("Log added successfully!");
       }
 
-      setIsLogModalOpen(false); 
+      setIsLogModalOpen(false);
       setEditingLogId(null);
-      fetchData(); 
-    } catch (e) { console.error(e); alert("Error"); } finally { setIsSubmitting(false); }
+      fetchData();
+      refreshPublicSite();
+    } catch (e) { console.error(e); alert(e?.message || "Error"); } finally { setIsSubmitting(false); }
   };
 
   // تعديل أو إضافة المهارات
@@ -244,9 +259,10 @@ export default function AdminDashboard() {
         alert("Category Added!");
       }
 
-      setIsSkillModalOpen(false); 
+      setIsSkillModalOpen(false);
       setEditingSkillId(null);
-      fetchData(); 
+      fetchData();
+      refreshPublicSite();
     } catch (e) { console.error(e); alert("Error"); } finally { setIsSubmitting(false); }
   };
 
@@ -254,6 +270,7 @@ export default function AdminDashboard() {
     const items = nextItems.map((item, index) => ({ ...item, order: index + 1 }));
     await setDoc(PROJECTS_DOC(), { items });
     setProjects(items);
+    refreshPublicSite();
   };
 
   const openNewProjectModal = () => {
@@ -362,6 +379,7 @@ export default function AdminDashboard() {
       await setDoc(doc(db, "settings", "cv"), meta);
       setCvMeta(meta);
       setCvFile(null);
+      refreshPublicSite();
     } catch (error) {
       console.error(error);
       setCvError(error?.message || "CV publish failed.");
@@ -372,7 +390,7 @@ export default function AdminDashboard() {
 
   const handleSocialSubmit = async (e) => {
     e.preventDefault(); setIsSubmitting(true);
-    try { await setDoc(doc(db, "settings", "socials"), socialData); setIsSocialModalOpen(false); alert("Links updated!"); } catch (e) { console.error(e); alert("Error"); } finally { setIsSubmitting(false); }
+    try { await setDoc(doc(db, "settings", "socials"), socialData); setIsSocialModalOpen(false); refreshPublicSite(); alert("Links updated!"); } catch (e) { console.error(e); alert("Error"); } finally { setIsSubmitting(false); }
   };
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-[#050505]"><div className="w-10 h-10 border-4 border-cyan border-t-transparent rounded-full animate-spin"></div></div>;
@@ -419,6 +437,8 @@ export default function AdminDashboard() {
             ))}
           </div>
         </section>
+
+        <AssistantSettings />
 
         {/* قسم إدارة السجلات */}
         <section className="bg-glass border border-white/10 rounded-2xl p-6 flex flex-col h-[400px]">
@@ -553,8 +573,27 @@ export default function AdminDashboard() {
                     required 
                   />
                   <div className="flex flex-col gap-1">
-                    <input type="file" accept="image/*" onChange={e => setLogData({...logData, image: e.target.files[0]})} className="text-sm text-white/50 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-cyan/10 file:text-cyan hover:file:bg-cyan/20 cursor-pointer" />
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" onChange={e => setLogData({...logData, image: e.target.files[0]})} className="text-sm text-white/50 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-cyan/10 file:text-cyan hover:file:bg-cyan/20 cursor-pointer" />
                     {editingLogId && logData.imageUrl && !logData.image && <span className="text-xs text-green-400 font-mono">Image exists. Upload new to replace.</span>}
+                    {logData.image && <span className="text-xs text-white/50 font-mono">{(logData.image.size / 1024).toFixed(0)} KB · resized to max 1920px (WebP) before upload</span>}
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs text-cyan font-mono">TECH TAGS (comma separated, optional)</label>
+                    <input
+                      type="text"
+                      value={logData.tagsStr}
+                      onChange={e => setLogData({...logData, tagsStr: e.target.value})}
+                      placeholder="Next.js, Firebase, Gemini"
+                      className="w-full bg-black/50 border border-white/10 rounded-lg p-2 mt-1 text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-cyan font-mono">GITHUB URL (optional)</label>
+                    <input type="url" value={logData.githubUrl} onChange={e => setLogData({...logData, githubUrl: e.target.value})} placeholder="https://github.com/..." className="w-full bg-black/50 border border-white/10 rounded-lg p-2 mt-1 text-white font-mono" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-cyan font-mono">LIVE DEMO URL (optional)</label>
+                    <input type="url" value={logData.liveUrl} onChange={e => setLogData({...logData, liveUrl: e.target.value})} placeholder="https://..." className="w-full bg-black/50 border border-white/10 rounded-lg p-2 mt-1 text-white font-mono" />
                   </div>
                   <div className="col-span-2">
                     <label className="text-xs text-cyan font-mono">UNIQUE TAG</label>
@@ -577,7 +616,7 @@ export default function AdminDashboard() {
                   {logData.isExpandable && <textarea placeholder="Full Content" value={logData[activeTab].content} onChange={e => handleTextChange(activeTab, "content", e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white h-40" required />}
                 </div>
                 <button type="submit" disabled={isSubmitting} className="w-full py-4 bg-cyan/10 text-cyan font-bold rounded-lg border border-cyan/50 hover:bg-cyan hover:text-black">
-                  {editingLogId ? "UPDATE LOG" : "SAVE LOG"}
+                  {isSubmitting ? "SAVING..." : (editingLogId ? "UPDATE LOG" : "SAVE LOG")}
                 </button>
               </form>
             </motion.div>

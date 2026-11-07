@@ -1,88 +1,141 @@
 {
-  "hero": {
-    "systemInitialized": "System Initialized",
-    "titleFirst": "Turki",
-    "titleLast": "Aloufi.",
-    "description": "Software Engineer & Mobile Application Developer. Welcome to my digital workspace and portfolio command center.",
-    "button": "Initialize Logs"
+  "meta": {
+    "title": "Turki Aloufi | Software Engineer · AI & Full-Stack",
+    "description": "Portfolio of Turki Aloufi, a Software Engineering graduate (GPA 4.51/5) who builds AI-powered web and mobile apps. Based in Jeddah, open to on-site and remote roles.",
+    "ogAlt": "Turki Aloufi, Software Engineer"
   },
-  "clock": {
-    "title": "System Time",
-    "suffix": "SEC"
-  },
-  "calendar": {
-    "session": "Active Session",
-    "loading": "LOADING_DATA..."
-  },
-  "logs": {
-    "title": "System Activity Logs (Projects/News)",
-    "items": [
-      {
-        "date": "2026",
-        "status": "COMPLETED",
-        "title": "Student Management System",
-        "desc": "Developed and tested a comprehensive management system using JUnit and criteria-based testing models."
-      },
-      {
-        "date": "2025",
-        "status": "ONLINE",
-        "title": "Android Application",
-        "desc": "Built a native mobile application using Java and integrated Firebase for real-time database synchronization."
-      }
-    ]
-  },
-  "tech": {
-    "title": "Core Modules & Tech Stack",
-    "categories": [
-      {
-        "name": "Mobile & Architecture",
-        "skills": ["Android Studio", "Java", "Kotlin", "Firebase"]
-      },
-      {
-        "name": "Web & Frontend",
-        "skills": ["Next.js", "React", "Tailwind CSS", "Framer Motion"]
-      },
-      {
-        "name": "Testing & Workspaces",
-        "skills": ["JUnit", "Git/GitHub", "ClickUp", "VS Code"]
-      }
-    ]
-  },
-  "contact": {
-    "title": "Secure Uplink",
-    "description": "Establish a direct communication channel. Awaiting your signal...",
-    "nameLabel": "Entity Name",
-    "emailLabel": "Return Signal (Email)",
-    "messageLabel": "Encrypted Message",
-    "sendButton": "Transmit Data",
-    "social": {
-      "github": "GitHub Repository",
-      "linkedin": "LinkedIn Network"
-    }
+  "a11y": {
+    "skipToContent": "Skip to content"
   },
   "nav": {
-    "home": "Home",
-    "logs": "Logs",
-    "coop": "Coop",
+    "home": "Back to top",
     "cv": "CV",
+    "coop": "Co-op",
     "projects": "Projects",
-    "tech": "Tech",
-    "contact": "Contact"
+    "contact": "Contact",
+    "askAi": "Ask AI",
+    "askAboutProject": "Ask AI about {name}",
+    "emptyProjects": "No projects published yet.",
+    "switchLanguage": "Switch to Arabic"
   },
-  "cvProjects": {
-    "cvTitle": "Resume",
-    "view": "View CV",
-    "download": "Download PDF",
+  "hero": {
+    "eyebrow": "System Initialized",
+    "titleFirst": "Turki",
+    "titleLast": "Aloufi.",
+    "role": "Software Engineer · AI & Full-Stack Developer",
+    "description": "I build AI-powered web and mobile apps, from the first idea to launch. Welcome to my portfolio command center.",
+    "status": "Open to work · Jeddah or remote",
+    "facts": [
+      { "value": "4.51 / 5", "label": "GPA · Excellent" },
+      { "value": "SNB", "label": "Digital Banking Co-op" },
+      { "value": "2026", "label": "B.Sc. Software Engineering" }
+    ],
+    "ctaAsk": "Ask my AI",
+    "ctaProjects": "View projects",
+    "ctaCv": "Download CV",
+    "ctaContact": "Contact me",
+    "aiCard": {
+      "eyebrow": "T.A Core · Online",
+      "title": "Ask my AI assistant",
+      "subtitle": "It knows my projects, skills, and availability.",
+      "placeholder": "e.g. What is he working on now?",
+      "send": "Ask",
+      "suggestions": ["What roles is he a fit for?", "What is he working on right now?", "When can he start?"]
+    }
+  },
+  "projects": {
+    "eyebrow": "System Logs",
+    "title": "Projects & Updates",
+    "latest": "Latest",
+    "details": "Details",
+    "askAi": "Ask AI about this",
+    "askQuestion": "Tell me about \"{title}\".",
+    "github": "GitHub",
+    "live": "Live demo",
+    "empty": "No projects published yet.",
     "close": "Close",
-    "emptyCv": "CV is not published yet.",
-    "projectsTitle": "Projects",
-    "completed": "Completed",
-    "inProgress": "In Progress",
-    "emptyProjects": "No projects published yet."
+    "enlarge": "Enlarge image",
+    "imageUnavailable": "Image unavailable"
+  },
+  "resume": {
+    "eyebrow": "Personnel File",
+    "title": "Resume",
+    "download": "Download PDF",
+    "downloading": "Preparing…",
+    "empty": "The CV is not published yet.",
+    "loading": "Loading preview…",
+    "previewFailed": "Could not preview this PDF.",
+    "enlarge": "Open full view",
+    "close": "Close"
+  },
+  "tech": {
+    "eyebrow": "Core Modules",
+    "title": "Tech Stack",
+    "empty": "No skills published yet."
+  },
+  "contact": {
+    "eyebrow": "Secure Uplink",
+    "title": "Contact me",
+    "description": "Have a role, a project, or a question? Send a message and I'll reply soon.",
+    "nameLabel": "Name",
+    "emailLabel": "Email",
+    "messageLabel": "Message",
+    "send": "Send message",
+    "sending": "Sending…",
+    "successTitle": "Message received",
+    "successText": "Thanks! I'll get back to you soon.",
+    "errors": {
+      "generic": "Your message couldn't be sent. Please try again, or email me directly.",
+      "tooFast": "Please take a moment to finish your message before sending.",
+      "cooldown": "You just sent a message. Please wait a minute before sending another.",
+      "invalidEmail": "Please enter a valid email address."
+    },
+    "social": {
+      "github": "GitHub",
+      "linkedin": "LinkedIn",
+      "email": "Email",
+      "phone": "Call"
+    }
+  },
+  "assistant": {
+    "name": "T.A Core",
+    "status": "Online",
+    "open": "Open the AI assistant",
+    "close": "Close chat",
+    "greeting": "Hi! I'm T.A Core, Turki's AI assistant. Ask me anything, or pick a question:",
+    "placeholder": "Ask about Turki…",
+    "send": "Send",
+    "introBubble": "Hi 👋 I'm T.A Core, Turki's AI. Ask me anything about his work!",
+    "introCta": "Ask me",
+    "introDismiss": "Dismiss",
+    "unread": "New message from T.A Core",
+    "suggestions": [
+      "What roles is he a fit for? 💼",
+      "What is he working on right now? 🚀",
+      "Is he open to working outside Jeddah? 📍",
+      "When can he start? 📅",
+      "Does he prefer management or engineering? 🧭",
+      "Tell me about Seven Seconds 📄",
+      "What are his main tech skills? 💻",
+      "What are his strengths? 💪",
+      "What are his weaknesses? 🎯",
+      "Turki and hardware ⚙️",
+      "How can I contact him? ✉️"
+    ],
+    "errors": {
+      "rate_limited": "You're sending messages quickly. Please wait a moment and try again.",
+      "ai_busy": "Turki's assistant is taking a short break ☕ Please try again in a minute or two.",
+      "ai_unavailable": "The assistant is unavailable right now. Please try again shortly.",
+      "network": "I can't reach the server. Check your connection and try again.",
+      "interrupted": "The answer was cut off. Please try again.",
+      "empty_response": "I couldn't generate an answer. Please try again.",
+      "message_too_long": "That message is too long. Please shorten it.",
+      "default": "Something went wrong. Please try again."
+    }
   },
   "footer": {
-    "copyright": "© 2026 Turki Alofi. All rights reserved.",
-    "status": "System Status: ONLINE",
-    "version": "v1.4.0"
+    "copyright": "© 2026 Turki Aloufi. All rights reserved.",
+    "status": "System Status: Online",
+    "version": "v2.0.0"
   }
 }
