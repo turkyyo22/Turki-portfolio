@@ -103,7 +103,7 @@ export default function Hero({ dict, lang, cvAvailable }) {
         transition={{ duration: 0.7, ease: "easeOut", delay: 0.15 }}
         className="w-full max-w-md lg:justify-self-end"
       >
-        <AskAiCard dict={dict.aiCard} />
+        <AskAiCard dict={dict.aiCard} lang={lang} />
       </motion.div>
     </section>
   );

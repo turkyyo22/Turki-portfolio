@@ -51,6 +51,52 @@ body {
   animation: shimmer 1.6s infinite;
 }
 
+/* T.A Core robot icon: blinking eyes, glowing antenna, gentle float */
+@keyframes bot-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.12);
+  }
+}
+
+@keyframes bot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes bot-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.bot-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: bot-blink 4.5s ease-in-out infinite;
+}
+
+.bot-antenna {
+  animation: bot-pulse 2.2s ease-in-out infinite;
+}
+
+.bot-float {
+  animation: bot-float 3.2s ease-in-out infinite;
+}
+
 /* Honour the visitor's "reduce motion" setting for CSS animations too */
 @media (prefers-reduced-motion: reduce) {
   *,

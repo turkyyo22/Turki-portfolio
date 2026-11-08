@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { askAssistant } from "@/lib/assistant/events";
 import { format } from "@/lib/i18n";
@@ -13,7 +14,22 @@ const itemClass =
 export default function SiteNav({ lang, dict, projects, publishedSlugs, askQuestionTemplate }) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
+  const lastLogoClick = useRef(0);
+  const router = useRouter();
   const published = new Set(publishedSlugs);
+
+  // "T.A" scrolls to the top. A quick second click (or tap) opens the admin
+  // sign-in: a quiet way in that isn't advertised to visitors.
+  const onLogoClick = () => {
+    const now = Date.now();
+    if (now - lastLogoClick.current < 450) {
+      lastLogoClick.current = 0;
+      router.push(`/${lang}/admin`);
+      return;
+    }
+    lastLogoClick.current = now;
+    scrollToY(0);
+  };
 
   const otherLang = lang === "en" ? "ar" : "en";
   const toggleText = lang === "en" ? "عربي" : "English";
@@ -61,9 +77,9 @@ export default function SiteNav({ lang, dict, projects, publishedSlugs, askQuest
       <div className="max-w-7xl mx-auto flex min-w-0 items-center gap-2 sm:gap-3 rounded-2xl border border-white/10 bg-[#050A15]/75 backdrop-blur-xl px-2 sm:px-4 py-2.5 shadow-[0_0_30px_rgba(0,229,255,0.08)]">
         <button
           type="button"
-          onClick={() => scrollToY(0)}
+          onClick={onLogoClick}
           aria-label={dict.home}
-          className="shrink-0 font-bold text-lg tracking-wider text-white transition-all duration-200 hover:text-cyan hover:drop-shadow-[0_0_8px_rgba(0,229,255,0.6)] active:scale-90"
+          className="shrink-0 touch-manipulation select-none font-bold text-lg tracking-wider text-white transition-all duration-200 hover:text-cyan hover:drop-shadow-[0_0_8px_rgba(0,229,255,0.6)] active:scale-90"
         >
           T.A
         </button>

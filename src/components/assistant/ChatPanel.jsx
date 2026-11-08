@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { ASSISTANT_LIMITS } from "@/lib/assistant/limits";
 import { directionOf } from "@/lib/i18n";
 import ChatMessage from "./ChatMessage";
-import CoreGlyph from "./CoreGlyph";
+import CoreBot from "./CoreBot";
 
 export default function ChatPanel({ lang, dict, messages, isLoading, suggestions, suggestionRound, onSend, onClose }) {
   const [text, setText] = useState("");
@@ -62,7 +62,7 @@ export default function ChatPanel({ lang, dict, messages, isLoading, suggestions
       <header className="relative flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-cyan/15 via-blue/10 to-transparent p-4">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan/60 to-transparent" />
         <div className="flex items-center gap-3">
-          <CoreGlyph size={34} />
+          <CoreBot size={36} />
           <div>
             <h2 className="text-sm font-bold tracking-widest text-white">{dict.name}</h2>
             <p className="flex items-center gap-1.5 text-[11px] text-emerald-300">

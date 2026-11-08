@@ -57,7 +57,7 @@ export default async function Home({ params }) {
         <Contact dict={dict.contact} socials={socials} />
       </main>
 
-      <Footer dict={dict.footer} />
+      <Footer dict={dict.footer} lang={lang} />
       <MouseSpotlight />
       <AssistantWidget lang={lang} dict={dict.assistant} />
       <ScrollToTop label={dict.nav.home} />

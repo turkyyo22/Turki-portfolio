@@ -36,7 +36,7 @@ export default async function OpengraphImage() {
           Software Engineer · AI & Full-Stack Developer
         </div>
         <div style={{ display: "flex", marginTop: 56, fontSize: 28, color: "#F8FAFC" }}>
-          <span style={{ color: "#00E5FF", marginRight: 12 }}>●</span> Open to work · Jeddah or remote
+          <span style={{ color: "#00E5FF", marginRight: 12 }}>●</span> Open to work · Saudi Arabia
         </div>
       </div>
     ),

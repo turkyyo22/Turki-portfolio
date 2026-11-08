@@ -4,27 +4,27 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { motion, useReducedMotion } from "framer-motion";
 
-import CoreGlyph from "./CoreGlyph";
+import CoreBot from "./CoreBot";
 
 // three.js is only downloaded when the intro actually plays.
-const CoreOrb = dynamic(() => import("./CoreOrb"), { ssr: false });
+const CoreBot3D = dynamic(() => import("./CoreBot3D"), { ssr: false });
 
 const VISIBLE_MS = 9000;
 const SCROLL_DISMISS_PX = 240;
 const TYPE_INTERVAL_MS = 28;
 
 /**
- * The first-visit greeting: the 3D core appears above the chat button and
- * "speaks" a short message. Clicking it opens the chat; it dismisses itself
+ * The first-visit greeting: the 3D T.A Core robot appears above the chat
+ * button and "speaks" a short message. Clicking it opens the chat; it dismisses itself
  * after a few seconds, on scroll, or with Escape.
  */
 export default function AssistantIntro({ dict, textDirection = "ltr", onOpen, onDismiss }) {
   const reduceMotion = useReducedMotion();
   const fullText = dict.introBubble;
   const [typedLength, setTypedLength] = useState(reduceMotion ? fullText.length : 0);
-  const [orbFailed, setOrbFailed] = useState(false);
-  const [orbSize] = useState(() => (window.innerWidth < 640 ? 84 : 112));
-  const handleUnsupported = useCallback(() => setOrbFailed(true), []);
+  const [webglFailed, setWebglFailed] = useState(false);
+  const [botSize] = useState(() => (window.innerWidth < 640 ? 96 : 124));
+  const handleUnsupported = useCallback(() => setWebglFailed(true), []);
   const isTyping = typedLength < fullText.length;
 
   useEffect(() => {
@@ -51,8 +51,6 @@ export default function AssistantIntro({ dict, textDirection = "ltr", onOpen, on
     };
   }, [onDismiss]);
 
-  const show3d = !reduceMotion && !orbFailed;
-
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.4, y: 40 }}
@@ -67,12 +65,13 @@ export default function AssistantIntro({ dict, textDirection = "ltr", onOpen, on
     >
       <button type="button" onClick={onOpen} aria-label={dict.open} className="relative shrink-0 rounded-full">
         <span className="absolute inset-[18%] rounded-full bg-cyan/20 blur-2xl" aria-hidden="true" />
-        {show3d ? (
-          <CoreOrb size={orbSize} speaking={isTyping} onUnsupported={handleUnsupported} />
-        ) : (
-          <span className="flex items-center justify-center" style={{ width: orbSize, height: orbSize }}>
-            <CoreGlyph size={orbSize * 0.7} />
+        {/* With reduced motion the 3D robot is still shown, as a single still frame. */}
+        {webglFailed ? (
+          <span className="flex items-center justify-center" style={{ width: botSize, height: botSize }}>
+            <CoreBot size={botSize * 0.72} />
           </span>
+        ) : (
+          <CoreBot3D size={botSize} speaking={isTyping} still={Boolean(reduceMotion)} onUnsupported={handleUnsupported} />
         )}
       </button>
 
