@@ -6,6 +6,8 @@ import { useId } from "react";
  * The T.A Core mark: a small robot head with a screen visor and glowing eyes.
  * Drawn as SVG so it stays sharp at any size. With `animated`, the eyes blink
  * and the antenna glows (CSS animations, switched off for reduced motion).
+ * The eyes look toward `--bot-look-x` / `--bot-look-y` (each -1 to 1), CSS
+ * variables a parent can set to make the robot follow the cursor.
  */
 export default function CoreBot({ size = 40, animated = true, floating = false, className = "" }) {
   // Unique gradient ids, since several bots can be on the page at once.
@@ -53,10 +55,12 @@ export default function CoreBot({ size = 40, animated = true, floating = false, 
       <rect x="15" y="23" width="34" height="21" rx="10.5" fill="#03070f" stroke="rgba(0,229,255,0.45)" strokeWidth="1.2" />
       <path d="M19 27.5c2-2.3 5-3 9-3" stroke="rgba(255,255,255,0.18)" strokeWidth="1.6" strokeLinecap="round" fill="none" />
 
-      {/* Eyes */}
-      <g className={animated ? "bot-eyes" : ""}>
-        <rect x="22" y="28.5" width="6.5" height="10" rx="3.25" fill={`url(#${eye})`} />
-        <rect x="35.5" y="28.5" width="6.5" height="10" rx="3.25" fill={`url(#${eye})`} />
+      {/* Eyes: the outer group looks around, the inner one blinks. */}
+      <g style={{ transform: "translate(calc(var(--bot-look-x, 0) * 3.5px), calc(var(--bot-look-y, 0) * 2.5px))" }}>
+        <g className={animated ? "bot-eyes" : ""}>
+          <rect x="22" y="28.5" width="6.5" height="10" rx="3.25" fill={`url(#${eye})`} />
+          <rect x="35.5" y="28.5" width="6.5" height="10" rx="3.25" fill={`url(#${eye})`} />
+        </g>
       </g>
     </svg>
   );

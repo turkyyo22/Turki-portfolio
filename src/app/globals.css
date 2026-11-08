@@ -97,6 +97,14 @@ body {
   animation: bot-float 3.2s ease-in-out infinite;
 }
 
+/* Shows an element's background only in its padding, as a glowing rim */
+.glow-ring {
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
 /* Honour the visitor's "reduce motion" setting for CSS animations too */
 @media (prefers-reduced-motion: reduce) {
   *,
