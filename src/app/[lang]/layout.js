@@ -1,4 +1,9 @@
 import { Tajawal } from "next/font/google";
+
+import MotionProvider from "@/components/MotionProvider";
+import { getDictionary } from "@/get-dictionary";
+import { LOCALES, directionOf } from "@/lib/i18n";
+import { SITE_URL } from "@/lib/site";
 import "../globals.css";
 
 const arabic = Tajawal({
@@ -7,9 +12,44 @@ const arabic = Tajawal({
   display: "swap",
 });
 
-export const metadata = {
-  title: "Turki Alofi | Command Center",
-  description: "Software Engineer Portfolio",
+// Only /en and /ar exist; anything else is a 404 instead of a half-rendered page.
+export const dynamicParams = false;
+
+export function generateStaticParams() {
+  return LOCALES.map((lang) => ({ lang }));
+}
+
+export async function generateMetadata({ params }) {
+  const { lang } = await params;
+  const { meta } = await getDictionary(lang);
+  return {
+    metadataBase: new URL(SITE_URL),
+    title: meta.title,
+    description: meta.description,
+    alternates: {
+      canonical: `/${lang}`,
+      languages: { en: "/en", ar: "/ar", "x-default": "/en" },
+    },
+    openGraph: {
+      type: "website",
+      url: `/${lang}`,
+      siteName: "Turki Aloufi",
+      title: meta.title,
+      description: meta.description,
+      locale: lang === "ar" ? "ar_SA" : "en_US",
+      alternateLocale: lang === "ar" ? ["en_US"] : ["ar_SA"],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: meta.title,
+      description: meta.description,
+    },
+  };
+}
+
+export const viewport = {
+  themeColor: "#050A15",
+  colorScheme: "dark",
 };
 
 // Runs before the page paints: on a reload, turn off the browser's scroll
@@ -17,18 +57,17 @@ export const metadata = {
 const resetScrollOnReload = `(function(){try{var n=performance.getEntriesByType("navigation")[0];if(!n||n.type!=="reload")return;history.scrollRestoration="manual";if(location.hash)history.replaceState(history.state,"",location.pathname+location.search);window.scrollTo(0,0);}catch(e){}})();`;
 
 export default async function RootLayout({ children, params }) {
-
   const { lang } = await params;
-
-  const dir = lang === "ar" ? "rtl" : "ltr";
   const bodyFont = lang === "ar" ? `${arabic.className} antialiased` : "antialiased";
 
   return (
-    <html lang={lang} dir={dir}>
+    <html lang={lang} dir={directionOf(lang)}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: resetScrollOnReload }} />
       </head>
-      <body className={bodyFont}>{children}</body>
+      <body className={bodyFont}>
+        <MotionProvider>{children}</MotionProvider>
+      </body>
     </html>
   );
 }

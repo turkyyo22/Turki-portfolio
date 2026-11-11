@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 
-export default function Footer({ dict }) {
+export default function Footer({ dict, lang }) {
   if (!dict) return null;
 
   return (
@@ -33,9 +34,14 @@ export default function Footer({ dict }) {
           {/* فاصل زجاجي */}
           <div className="w-[1px] h-4 bg-white/10"></div>
           
-          <span className="text-muted/50 text-xs font-mono tracking-widest">
+          {/* The version number doubles as a quiet link to the admin sign-in. */}
+          <Link
+            href={`/${lang}/admin`}
+            aria-label={dict.admin}
+            className="text-muted/50 text-xs font-mono tracking-widest transition-colors hover:text-cyan"
+          >
             {dict.version}
-          </span>
+          </Link>
         </div>
 
       </div>

@@ -22,3 +22,97 @@ body {
 [id] {
   scroll-margin-top: 6.5rem;
 }
+
+/* A visible focus ring for keyboard users, without showing it on mouse clicks */
+:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+/* Loading placeholder for images */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.08), transparent);
+  animation: shimmer 1.6s infinite;
+}
+
+/* T.A Core robot icon: blinking eyes, glowing antenna, gentle float */
+@keyframes bot-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.12);
+  }
+}
+
+@keyframes bot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes bot-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.bot-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: bot-blink 4.5s ease-in-out infinite;
+}
+
+.bot-antenna {
+  animation: bot-pulse 2.2s ease-in-out infinite;
+}
+
+.bot-float {
+  animation: bot-float 3.2s ease-in-out infinite;
+}
+
+/* Shows an element's background only in its padding, as a glowing rim */
+.glow-ring {
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+/* Honour the visitor's "reduce motion" setting for CSS animations too */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

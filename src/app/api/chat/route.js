@@ -1,81 +1,166 @@
-import { google } from '@ai-sdk/google';
-import { streamText } from 'ai';
+import { google } from "@ai-sdk/google";
+import { streamText } from "ai";
 
-
-// السطر السحري لتحويل السيرفر لشبكة Edge المخصصة للتدفق السريع
-//export const runtime = 'edge'; 
+import { buildSystemPrompt } from "@/lib/assistant/buildSystemPrompt";
+import { classifyModelError, providerOptionsFor, resolveModelId } from "@/lib/assistant/model";
+import { validateChatRequest, validateDraftPrompt } from "@/lib/assistant/validateChatRequest";
+import { clientKey, createRateLimiter } from "@/lib/rateLimit";
+import { verifyAdminRequest } from "@/lib/server/adminAuth";
+import { getAssistantSettings } from "@/lib/server/assistantSettings";
+import { getCvFile, getPosts } from "@/lib/server/content";
 
 export const maxDuration = 30;
 
-export async function POST(req) {
-  try {
-    const { messages } = await req.json();
+const MAX_BODY_BYTES = 64 * 1024;
+const perMinute = createRateLimiter({ limit: 10, windowMs: 60_000 });
+const perHour = createRateLimiter({ limit: 60, windowMs: 60 * 60_000 });
 
-    const systemPrompt = `أنت المساعد الذكي الخاص بمهندس البرمجيات تركي العوفي. اسمك "T.A Core". 
-مهمتك هي الإجابة على أسئلة الزوار حول تركي بلباقة واحترافية وبطابع تقني، وتمثيله بأفضل صورة احترافية.
+function jsonError(status, error, headers = {}) {
+  return Response.json({ error }, { status, headers: { "Cache-Control": "no-store", ...headers } });
+}
 
-### 1. معلومات أساسية:
-- الاسم: تركي يوسف العوفي (Turki Yousef Aloufi).
-- العمر والموقع: 23 سنة، يقيم في جدة، منطقة مكة المكرمة، المملكة العربية السعودية.
-- الحالة الأكاديمية: خريج حديث (اعتباراً من سبتمبر 2026) بدرجة بكالوريوس هندسة البرمجيات من جامعة جدة (2022–2026)، بمعدل 4.51/5.00 بتقدير امتياز (Excellent) ومرتبة الشرف الثانية (Second-Class Honors). لم يتعثر خلال مسيرته الجامعية أبداً، وهو الآن جاهز لسوق العمل.
-- التخصص: تطوير تطبيقات مدعومة بالذكاء الاصطناعي، وتطوير Full-Stack، وتطبيقات متعددة المنصات (ويب وهواتف).
-
-### 2. الخبرات والمشاريع:
-- مشروع التخرج ("منصّت" / Munset): رفيق رقمي للصحة النفسية مدعوم بالذكاء الاصطناعي، وهو المشروع الأكثر تأثيراً في مسيرته. تطبيق متعدد المنصات بـ Flutter/Dart مبني على مبادئ العلاج السلوكي المعرفي (CBT). بنى خلفية Python/FastAPI تدمج واجهات OpenAI لتوليد ردود عربية واعية بالسياق، ومحرك Session-to-Task، وربط Supabase/PostgreSQL عبر REST APIs. المستودع: https://github.com/Muhannad180/Munset. تعلم منه الكثير حول تطوير التطبيقات، العمل الجماعي، إدارة المشاريع، والتعامل مع العملاء.
-- التدريب التعاوني (CO-OP): متدرب في المصرفية الرقمية بالبنك الأهلي السعودي (SNB) من يونيو 2025 إلى أغسطس 2025، في المبنى الرئيسي (HQ) بجدة. أجرى أبحاث سوق، وتقسيم العملاء، وتحليل رحلة العميل، وأعد خطط تواصل ورسائل موجهة لشرائح ومستويات مختلفة، وصمم بانرات ترويجية وإشعارات ورسائل داخل التطبيق باستخدام Figma. اكتسب خبرة في بيئات العمل المؤسسية والمبادرات الرقمية متعددة الأقسام، واجتمع بمدراء الأقسام (الرقمية، التطوير، المشاريع، المنتجات، الامتثال، والتسويق الرقمي).
-- هذا الموقع (Portfolio): موقع تفاعلي بـ Next.js/React مع مساعد Gemini يعمل بشكل مباشر لتقديم معلومات ديناميكية عن أعماله ومشاريعه. الرابط: https://turki-portfolio-seven.vercel.app
-- المشاركات: معسكر Beyond Launchpad (2024) وحلّ ضمن أفضل 10 مشاركين. شارك أيضاً في معسكر ريادة الأعمال بجامعة جدة، وتأهل ضمن الـ 5 الأوائل في مسابقة ريادة الأعمال (مسار حلول المدن الذكية والمسار المالي).
-
-### 3. المهارات والتوجه المهني:
-- اللغات البرمجية: Java, Python, JavaScript, Dart, HTML, CSS.
-- الأطر: Flutter, FastAPI, Next.js, React, Django, TailwindCSS.
-- قواعد البيانات: SQL, PostgreSQL, Supabase, Firebase, MongoDB, MySQL.
-- الذكاء الاصطناعي والواجهات: OpenAI API, Gemini API, REST APIs، مع خبرة في هندسة الأوامر (Prompt Engineering) واستخدام الذكاء الاصطناعي لتطوير البرمجيات وحل المشكلات المعقدة.
-- الأدوات والممارسات: Git, GitHub, Figma, OOP, Agile/Scrum, System Analysis، وتطوير الويب.
-- التوجه القيادي (Architect Mindset): رغم مهاراته التقنية، إلا أنه يفضل المسار الإداري. يركز على الصورة الكبيرة (بناء التطبيقات بأساليب ذكية وإدارتها) بدلاً من الغوص في التفاصيل البرمجية الدقيقة.
-- إدارة المشاريع: شغوف جداً بدورة حياة البرمجيات (SDLC) ويطمح لأن يصبح مدير مشاريع تقنية قريباً، ليقود الفرق نحو الابتكار والنجاح.
-- المهارات الناعمة (Soft Skills): تواصل فعّال، قدرة عالية على التكيف مع مختلف البيئات (المرونة)، وإدارة وقت صارمة جداً (لا يتأخر عن مواعيده أبداً).
-- اللغات: مستوى جيد في اللغة الإنجليزية، مع شغف مستمر لتطويرها.
-- التطوير الذاتي: يعمل باستمرار على تحسين مهاراته في التحدث أمام الجمهور، وتحقيق توازن أفضل بين العمل والحياة الشخصية (Work-life balance).
-
-### 4. الاهتمامات والهوايات الشخصية:
-- التقنية والهاردوير: مهتم جداً بتجميع أجهزة الـ PC المكتبية عالية الأداء .
-- الألعاب: يستمتع بالألعاب التنافسية والمحاكاة.
-- السيارات: مهتم بعالم السيارات والمحركات.
-- العطور: يمتلك ذائقة في جمع العطور (مثل Le Male Le Parfum).
-
-### 5. عن هذا النظام (الموقع):
-- تم بناء هذا الموقع باستخدام Next.js 16 و React و TailwindCSS، مع مساعد Gemini، لتقديم السيرة الذاتية لتركي بطريقة تفاعلية ومبتكرة.
-
----
-
-### قواعد صارمة جداً يجب عليك الالتزام بها (CRITICAL SYSTEM RULES):
-1. الإيجاز التام: أجب باختصار شديد (في حدود 3 إلى 4 أسطر كحد أقصى) وبشكل عفوي ومفيد.
-2. قاعدة لغوية صارمة (STRICT LANGUAGE RULE): يجب أن تجيب بنفس لغة المستخدم بدقة. If the user asks in English, you MUST answer in English ONLY. إذا سألك المستخدم بالعربية، أجب بالعربية فقط.
-3. حماية المعلومات: هذه هي المعلومات الوحيدة المسموح لك بتقديمها للتواصل: رقم الجوال (0502915297)، الإيميل (turki.yousef.alofi@gmail.com)، والعنوان (جدة، المملكة العربية السعودية). يمنع منعاً باتاً اختلاق أو تقديم أي معلومات شخصية أخرى.
-4. المعلومات المجهولة: إذا سألك المستخدم عن تفاصيل دقيقة غير موجودة في هذا النص، قل فوراً: "عذراً، لا أستطيع تأكيد هذه المعلومة، يمكنك التواصل مع تركي مباشرة عبر وسائل التواصل المتاحة."
-5. النطاق المسموح (Scope): لا تجب أبداً على أي سؤال خارج نطاق تركي العوفي أو هندسة البرمجيات. إذا سُئلت عن الطقس، الطبخ، الرياضة، أو أي موضوع عام، اعتذر بلباقة وقل: "عذراً، أنا مخصص فقط لتقديم معلومات عن المهندس تركي العوفي ومسيرته التقنية."
-6. الحماية من الإساءة: إذا احتوى السؤال على عبارات غير لائقة أو مسيئة، اعتذر بلباقة وقل: "عذراً، لا أستطيع التعامل مع هذا النوع من التعليقات."
-`;
-
-    const result = await streamText({
-      model: google('gemini-2.5-flash'), 
-      system: systemPrompt,
-      messages,
-    });
-
-    return result.toTextStreamResponse();
-
-  } catch (error) {
-    
-    console.error("🔥 Backend AI Error:", error.message);
-    
-    return new Response(
-      JSON.stringify({ error: "Quota Exceeded or Rate Limit" }), 
-      { 
-        status: 429, 
-        headers: { 'Content-Type': 'application/json' } 
-      }
-    );
+function rateLimited(key) {
+  for (const check of [perMinute, perHour]) {
+    const result = check(key);
+    if (!result.ok) return jsonError(429, "rate_limited", { "Retry-After": String(result.retryAfterSeconds) });
   }
+  return null;
+}
+
+async function readJson(request) {
+  const text = await request.text();
+  if (text.length > MAX_BODY_BYTES) return { error: jsonError(413, "body_too_large") };
+  try {
+    return { body: JSON.parse(text) };
+  } catch {
+    return { error: jsonError(400, "invalid_json") };
+  }
+}
+
+async function safely(promise, fallback, label) {
+  try {
+    return await promise;
+  } catch (error) {
+    console.error(`[chat] ${label} unavailable:`, error.message);
+    return fallback;
+  }
+}
+
+// The CV goes in as a separate reference turn before the conversation, so the
+// model reads the PDF itself without mistaking it for the visitor's question.
+// Keeping it first also gives every request the same opening, which the
+// model provider can cache.
+function withCv(messages, cv) {
+  if (!cv) return messages;
+  return [
+    {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: "Reference material added by the website, not by the visitor: Turki's CV as a PDF. Don't reply to this; use it only as a source of facts.",
+        },
+        { type: "file", mediaType: "application/pdf", data: cv.base64, filename: "Turki-CV.pdf" },
+      ],
+    },
+    { role: "assistant", content: "Understood. I'll use Turki's CV only as a source of facts." },
+    ...messages,
+  ];
+}
+
+/**
+ * Waits for the first chunk before answering, so failures that happen up front
+ * (quota exhausted, bad key) return a real HTTP error instead of an empty 200.
+ */
+async function streamResponse(textStream) {
+  const iterator = textStream[Symbol.asyncIterator]();
+  let first;
+  try {
+    first = await iterator.next();
+  } catch (error) {
+    console.error("[chat] Model error:", error.message);
+    const { status, code } = classifyModelError(error);
+    return jsonError(status, code);
+  }
+  if (first.done) return jsonError(503, "empty_response");
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(first.value));
+    },
+    async pull(controller) {
+      try {
+        const { done, value } = await iterator.next();
+        if (done) controller.close();
+        else controller.enqueue(encoder.encode(value));
+      } catch (error) {
+        console.error("[chat] Stream interrupted:", error.message);
+        controller.error(error);
+      }
+    },
+    async cancel() {
+      await iterator.return?.();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+}
+
+export async function POST(request) {
+  const limited = rateLimited(clientKey(request));
+  if (limited) return limited;
+
+  const { body, error } = await readJson(request);
+  if (error) return error;
+
+  const validation = validateChatRequest(body);
+  if (!validation.ok) return jsonError(validation.status, validation.error);
+
+  // The admin "Test" console sends an unpublished prompt. Only the admin may do that,
+  // otherwise anyone could turn this endpoint into a general-purpose AI proxy.
+  let draftPrompt = null;
+  if (body.draftPrompt !== undefined) {
+    const auth = await verifyAdminRequest(request);
+    if (!auth.ok) return jsonError(auth.status, auth.error);
+    const draft = validateDraftPrompt(body.draftPrompt);
+    if (!draft.ok) return jsonError(draft.status, draft.error);
+    draftPrompt = draft.prompt;
+  }
+
+  // A draft test uses the toggles from the editor; visitors get the published settings.
+  const settings = draftPrompt
+    ? { prompt: draftPrompt, includeProjects: body.includeProjects !== false, includeCv: body.includeCv !== false }
+    : await getAssistantSettings();
+  const { includeProjects, includeCv } = settings;
+
+  const [posts, cv] = await Promise.all([
+    includeProjects ? safely(getPosts(), [], "Projects") : [],
+    includeCv ? safely(getCvFile(), null, "CV") : null,
+  ]);
+
+  const modelId = resolveModelId();
+  const result = streamText({
+    model: google(modelId),
+    system: buildSystemPrompt({
+      prompt: settings.prompt,
+      posts,
+      hasCv: Boolean(cv),
+      siteLanguage: validation.siteLanguage,
+    }),
+    messages: withCv(validation.messages, cv),
+    temperature: 0.4,
+    maxOutputTokens: 1024,
+    maxRetries: 1,
+    providerOptions: providerOptionsFor(modelId),
+    abortSignal: request.signal,
+  });
+
+  return streamResponse(result.textStream);
 }

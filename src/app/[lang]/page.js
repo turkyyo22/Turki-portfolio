@@ -1,45 +1,78 @@
-import Hero from "@/components/Hero";
-import { getDictionary } from "@/get-dictionary"; 
-import SystemLogs from "@/components/SystemLogs";
-import TechStack from "@/components/TechStack";
+import AssistantWidget from "@/components/assistant/AssistantWidget";
 import Contact from "@/components/Contact";
-import NetworkBackground from "@/components/NetworkBackground";
-import ScrollToTop from "@/components/ScrollToTop";
 import Footer from "@/components/Footer";
-import AICore from "@/components/AICore";
+import Hero from "@/components/Hero";
 import MouseSpotlight from "@/components/MouseSpotlight";
+import NetworkBackground from "@/components/NetworkBackground";
+import ProjectsSection from "@/components/projects/ProjectsSection";
+import ResumeSection from "@/components/ResumeSection";
+import ScrollToTop from "@/components/ScrollToTop";
 import SiteNav from "@/components/SiteNav";
-import CvProjects from "@/components/CvProjects";
+import TechStack from "@/components/TechStack";
+import { getDictionary } from "@/get-dictionary";
+import { localizeQuestions } from "@/lib/content/questions";
+import { getCvMeta, getPosts, getProjectsMenu, getQuestions, getSkills, getSocials } from "@/lib/server/content";
+
+// Content is rendered on the server and cached. The admin dashboard refreshes it
+// on save; this is the fallback refresh interval (in seconds).
+export const revalidate = 300;
 
 export default async function Home({ params }) {
   const { lang } = await params;
-  const dict = await getDictionary(lang);
+  const [dict, posts, skills, projectsMenu, socials, cv, questions] = await Promise.all([
+    getDictionary(lang),
+    getPosts(),
+    getSkills(),
+    getProjectsMenu(),
+    getSocials(),
+    getCvMeta(),
+    getQuestions(),
+  ]);
+  const publishedSlugs = posts.map((post) => post.slug).filter(Boolean);
+
+  // Suggested questions come from the admin dashboard when saved there, otherwise from the dictionary.
+  const heroDict = {
+    ...dict.hero,
+    aiCard: { ...dict.hero.aiCard, suggestions: localizeQuestions(questions?.card, lang) ?? dict.hero.aiCard.suggestions },
+  };
+  const assistantDict = {
+    ...dict.assistant,
+    suggestions: localizeQuestions(questions?.chat, lang) ?? dict.assistant.suggestions,
+  };
 
   return (
-    <main id="top" className="min-h-screen px-4 sm:px-8 pb-8 pt-24 relative overflow-hidden flex flex-col items-center">
-      
+    <div className="relative min-h-screen overflow-hidden">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-cyan focus:px-4 focus:py-2 focus:font-bold focus:text-[#050a15]"
+      >
+        {dict.a11y.skipToContent}
+      </a>
+
       <NetworkBackground />
-      <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-blue/20 blur-[150px] rounded-full pointer-events-none -z-10" />
-      <div className="absolute bottom-[20%] right-[-5%] w-[30rem] h-[30rem] bg-cyan/10 blur-[150px] rounded-full pointer-events-none -z-10" />
+      <div aria-hidden="true" className="pointer-events-none absolute -left-[10%] -top-[10%] -z-10 h-96 w-96 rounded-full bg-blue/20 blur-[150px]" />
+      <div aria-hidden="true" className="pointer-events-none absolute -right-[5%] bottom-[20%] -z-10 h-[30rem] w-[30rem] rounded-full bg-cyan/10 blur-[150px]" />
 
-      <SiteNav lang={lang} dict={dict.nav} projectsDict={dict.cvProjects} />
+      <SiteNav
+        lang={lang}
+        dict={dict.nav}
+        projects={projectsMenu}
+        publishedSlugs={publishedSlugs}
+        askQuestionTemplate={dict.projects.askQuestion}
+      />
 
-      <Hero dict={dict} lang={lang} />
-      
-      <SystemLogs dict={dict.logs} />
+      <main id="main" tabIndex={-1} className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center px-4 pb-8 pt-24 outline-none sm:px-8">
+        <Hero dict={heroDict} lang={lang} cvAvailable={cv.available} />
+        <ProjectsSection dict={dict.projects} lang={lang} posts={posts} />
+        <ResumeSection dict={dict.resume} cv={cv} />
+        <TechStack dict={dict.tech} lang={lang} skills={skills} />
+        <Contact dict={dict.contact} socials={socials} />
+      </main>
 
-      <CvProjects dict={dict.cvProjects} />
-      
-      <TechStack dict={dict.tech} />
-      {/* قسم التواصل */}
-      <Contact dict={dict.contact} />
-      {/* التذييل */}
-      <Footer dict={dict.footer} />
+      <Footer dict={dict.footer} lang={lang} />
       <MouseSpotlight />
-      {/* المساعد الذكي */}
-      <AICore lang={lang} />
-      {/* زر الصعود للأعلى */}
-      <ScrollToTop />
-    </main>
+      <AssistantWidget lang={lang} dict={assistantDict} />
+      <ScrollToTop label={dict.nav.home} />
+    </div>
   );
 }

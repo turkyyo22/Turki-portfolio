@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { scrollToY } from "@/lib/smoothScroll";
 
-export default function ScrollToTop() {
+export default function ScrollToTop({ label }) {
   const [isVisible, setIsVisible] = useState(false);
   const scrollingRef = useRef(false);
 
@@ -35,6 +35,7 @@ export default function ScrollToTop() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 20 }}
           type="button"
+          aria-label={label}
           onMouseDown={(event) => event.preventDefault()}
           onClick={scrollToTop}
           whileHover={{
@@ -44,7 +45,7 @@ export default function ScrollToTop() {
           }}
           whileTap={{ scale: 0.9 }}
           // تم وضع الزر في أسفل اليمين ليكون مناسباً ولا يغطي المحتوى
-          className="fixed bottom-8 right-8 z-50 p-3 bg-glass border border-cyan/50 text-cyan rounded-full backdrop-blur-md transition-colors duration-200 hover:bg-cyan hover:text-black transform-gpu backface-hidden antialiased flex items-center justify-center"
+          className="fixed bottom-4 right-4 z-50 p-2.5 sm:bottom-8 sm:right-8 sm:p-3 bg-glass border border-cyan/50 text-cyan rounded-full backdrop-blur-md transition-colors duration-200 hover:bg-cyan hover:text-black transform-gpu backface-hidden antialiased flex items-center justify-center"
         >
           {/* أيقونة سهم للأعلى */}
           <svg
@@ -54,6 +55,7 @@ export default function ScrollToTop() {
             strokeWidth={2.5}
             stroke="currentColor"
             className="w-6 h-6"
+            aria-hidden="true"
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
           </svg>
