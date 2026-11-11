@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 
 import Dialog from "@/components/Dialog";
+import Loader from "@/components/Loader";
 import SectionHeading from "@/components/SectionHeading";
 import { downloadCv, loadCv } from "@/lib/cvClient";
 
 /** Renders every page of the PDF to canvases with pdf.js. */
-function PdfPages({ bytes, failedLabel }) {
+function PdfPages({ bytes, failedLabel, loadingLabel }) {
   const hostRef = useRef(null);
   const [failed, setFailed] = useState(false);
+  const [rendered, setRendered] = useState(false); // true once the first page is drawn
 
   useEffect(() => {
     const host = hostRef.current;
@@ -35,6 +37,7 @@ function PdfPages({ bytes, failedLabel }) {
         canvas.className = "w-full h-auto bg-white";
         host.appendChild(canvas);
         await page.render({ canvasContext: context, viewport }).promise;
+        if (pageNumber === 1 && !cancelled) setRendered(true);
       }
     })().catch((error) => {
       console.error("CV preview failed:", error);
@@ -47,7 +50,12 @@ function PdfPages({ bytes, failedLabel }) {
   }, [bytes]);
 
   if (failed) return <p className="py-8 text-center font-mono text-sm text-slate-500">{failedLabel}</p>;
-  return <div ref={hostRef} dir="ltr" className="flex flex-col" />;
+  return (
+    <div className="relative min-h-[320px]">
+      {!rendered && <Loader tone="light" label={loadingLabel} className="absolute inset-0" />}
+      <div ref={hostRef} dir="ltr" className={`flex flex-col transition-opacity duration-300 ${rendered ? "opacity-100" : "opacity-0"}`} />
+    </div>
+  );
 }
 
 export default function ResumeSection({ dict, cv }) {
@@ -120,10 +128,10 @@ export default function ResumeSection({ dict, cv }) {
             >
               <div dir="ltr" className="max-h-[560px] min-h-[320px] overflow-y-auto">
                 {status === "ready" ? (
-                  <PdfPages bytes={bytes} failedLabel={dict.previewFailed} />
+                  <PdfPages bytes={bytes} failedLabel={dict.previewFailed} loadingLabel={dict.loading} />
                 ) : (
                   <div className="flex min-h-[320px] items-center justify-center font-mono text-sm text-slate-500">
-                    {status === "error" ? dict.previewFailed : dict.loading}
+                    {status === "error" ? dict.previewFailed : <Loader tone="light" label={dict.loading} />}
                   </div>
                 )}
               </div>
@@ -169,7 +177,7 @@ export default function ResumeSection({ dict, cv }) {
           </svg>
         </button>
         <div dir="ltr" className="max-h-[90vh] overflow-y-auto">
-          <PdfPages bytes={bytes} failedLabel={dict.previewFailed} />
+          <PdfPages bytes={bytes} failedLabel={dict.previewFailed} loadingLabel={dict.loading} />
         </div>
       </Dialog>
     </section>

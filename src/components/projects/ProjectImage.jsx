@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Image from "next/image";
 
+import Loader from "@/components/Loader";
+
 /**
  * Project screenshot inside a fixed frame:
  * - Next.js serves a resized WebP sized for the visitor's screen.
@@ -29,6 +31,7 @@ export default function ProjectImage({ src, alt, sizes, unavailableLabel, eager 
         onError={() => setStatus("error")}
         className={`object-contain transition-opacity duration-500 ${status === "loaded" ? "opacity-100" : "opacity-0"}`}
       />
+      {status === "loading" && <Loader className="absolute inset-0" />}
     </div>
   );
 }
