@@ -97,6 +97,33 @@ body {
   animation: bot-float 3.2s ease-in-out infinite;
 }
 
+/* Loading indicator (see Loader.jsx) */
+@keyframes loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loader-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.7);
+  }
+}
+
+.loader-spin {
+  animation: loader-spin 0.9s linear infinite;
+}
+
+.loader-pulse {
+  animation: loader-pulse 1.2s ease-in-out infinite;
+}
+
 /* Shows an element's background only in its padding, as a glowing rim */
 .glow-ring {
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -114,5 +141,12 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* A loading indicator is essential feedback, so it keeps moving (slower). */
+  .loader-spin,
+  .loader-pulse {
+    animation-duration: 1.4s !important;
+    animation-iteration-count: infinite !important;
   }
 }
