@@ -10,6 +10,14 @@
   --accent-blue: #3B82F6;
   --text-main: #F8FAFC;
   --text-muted: #94A3B8;
+
+  /* The same colours as RGB channels, for tailwind.config.js. Tailwind needs
+     them to apply opacity modifiers such as bg-cyan/15. Keep them in step
+     with the hex values above (src/app/themeColors.test.js checks this). */
+  --bg-deep-rgb: 5 10 21;
+  --accent-cyan-rgb: 0 229 255;
+  --accent-blue-rgb: 59 130 246;
+  --text-muted-rgb: 148 163 184;
 }
 
 body {
