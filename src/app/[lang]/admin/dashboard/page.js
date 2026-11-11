@@ -7,7 +7,12 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, addDoc, getDocs, updateDoc, doc, setDoc, getDoc, query, orderBy, deleteDoc } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
 import AssistantSettings from "@/components/admin/AssistantSettings";
+import BilingualField from "@/components/admin/translator/BilingualField";
+import BilingualLogFields from "@/components/admin/translator/BilingualLogFields";
+import MissingLanguageNotice from "@/components/admin/translator/MissingLanguageNotice";
+import { useTranslator } from "@/components/admin/translator/useTranslator";
 import { refreshPublicSite, uploadProjectImage } from "@/lib/adminApi";
+import { bilingualGaps, translationJobs } from "@/lib/content/bilingual";
 import { normalizeTags, safeUrl } from "@/lib/content/normalize";
 import { compressImage } from "@/lib/imageCompression";
 
@@ -28,8 +33,10 @@ export default function AdminDashboard() {
   const [isSkillModalOpen, setIsSkillModalOpen] = useState(false);
   const [isSocialModalOpen, setIsSocialModalOpen] = useState(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("ar"); 
-  
+  // After a save attempt with a language missing, the form points out what to fill.
+  const [showLogGaps, setShowLogGaps] = useState(false);
+  const logTranslator = useTranslator();
+
   const [messages, setMessages] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [logs, setLogs] = useState([]);
@@ -51,6 +58,7 @@ export default function AdminDashboard() {
   const lang = params?.lang || "en";
 
   const getTodayDate = () => new Date().toISOString().split("T")[0];
+  const trimTexts = (texts = {}) => Object.fromEntries(Object.entries(texts).map(([key, value]) => [key, typeof value === "string" ? value.trim() : value]));
 
   const emptyLog = () => ({
     date: getTodayDate(),
@@ -149,6 +157,7 @@ export default function AdminDashboard() {
       ar: log.ar || { title: "", description: "", content: "" },
       en: log.en || { title: "", description: "", content: "" }
     });
+    setShowLogGaps(false);
     setIsLogModalOpen(true);
   };
 
@@ -168,6 +177,7 @@ export default function AdminDashboard() {
   const openNewLogModal = () => {
     setEditingLogId(null);
     setLogData(emptyLog());
+    setShowLogGaps(false);
     setIsLogModalOpen(true);
   };
 
@@ -183,49 +193,74 @@ export default function AdminDashboard() {
   };
 
   const handleLogout = async () => { await signOut(auth); router.push(`/${lang}/admin`); };
-  const handleTextChange = (langKey, field, value) => setLogData(prev => ({ ...prev, [langKey]: { ...prev[langKey], [field]: value } }));
+  const changeLogText = (langKey, patch) => setLogData(prev => ({ ...prev, [langKey]: { ...prev[langKey], ...patch } }));
+
+  // The text fields every log needs in both languages.
+  const logFields = logData.isExpandable ? ["title", "description", "content"] : ["title", "description"];
+  const logGaps = bilingualGaps(logData, logFields);
+
+  // Returns a message when the tag or links are invalid, otherwise null.
+  const logMetaError = () => {
+    const slug = logData.slug.trim().toLowerCase();
+    if (!SLUG_PATTERN.test(slug)) return "Unique tag must use lowercase letters, numbers, and hyphens. Example: coop or munset.";
+    if (logs.some((log) => log.slug === slug && log.id !== editingLogId)) return "This unique tag is already used by another log.";
+    for (const [label, value] of [["GitHub", logData.githubUrl], ["Live demo", logData.liveUrl]]) {
+      if (value.trim() && !safeUrl(value)) return `The ${label} link must be a full URL starting with https://`;
+    }
+    return null;
+  };
 
   // تعديل أو إضافة السجلات
   const handleLogSubmit = async (e) => {
     e.preventDefault();
-    const slug = logData.slug.trim().toLowerCase();
-    if (!SLUG_PATTERN.test(slug)) {
-      alert("Unique tag must use lowercase letters, numbers, and hyphens. Example: coop or munset.");
+    const metaError = logMetaError();
+    if (metaError) {
+      alert(metaError);
       return;
     }
-    if (logs.some((log) => log.slug === slug && log.id !== editingLogId)) {
-      alert("This unique tag is already used by another log.");
+    // Both languages must be complete; if one is missing, offer to translate it.
+    if (logGaps.blank.length > 0 || logGaps.missing.length > 0) {
+      setShowLogGaps(true);
       return;
     }
+    await saveLog(logData);
+  };
 
-    for (const [label, value] of [["GitHub", logData.githubUrl], ["Live demo", logData.liveUrl]]) {
-      if (value.trim() && !safeUrl(value)) {
-        alert(`The ${label} link must be a full URL starting with https://`);
-        return;
-      }
+  // Translates every missing field (one request per direction), then saves.
+  const translateMissingAndSave = async () => {
+    let next = logData;
+    for (const job of translationJobs(logData, logGaps.missing)) {
+      const translated = await logTranslator.translate({ ...job, context: "log" });
+      if (!translated) return;
+      next = { ...next, [job.to]: { ...next[job.to], ...translated } };
     }
+    setLogData(next);
+    await saveLog(next);
+  };
 
+  const saveLog = async (data) => {
+    const slug = data.slug.trim().toLowerCase();
     setIsSubmitting(true);
     try {
-      let finalImageUrl = logData.imageUrl; // نستخدم الصورة القديمة مبدئياً
+      let finalImageUrl = data.imageUrl; // نستخدم الصورة القديمة مبدئياً
 
       // A new image is shrunk in the browser, then uploaded through the server
       // (which holds the imgbb key). If the upload fails, nothing is saved.
-      if (logData.image) {
-        const compressed = await compressImage(logData.image);
+      if (data.image) {
+        const compressed = await compressImage(data.image);
         finalImageUrl = await uploadProjectImage(compressed);
       }
 
       const postPayload = {
-        date: logData.date || getTodayDate(),
+        date: data.date || getTodayDate(),
         imageUrl: finalImageUrl,
-        isExpandable: logData.isExpandable,
+        isExpandable: data.isExpandable,
         slug,
-        tags: normalizeTags(logData.tagsStr),
-        githubUrl: safeUrl(logData.githubUrl),
-        liveUrl: safeUrl(logData.liveUrl),
-        ar: logData.ar,
-        en: logData.en
+        tags: normalizeTags(data.tagsStr),
+        githubUrl: safeUrl(data.githubUrl),
+        liveUrl: safeUrl(data.liveUrl),
+        ar: trimTexts(data.ar),
+        en: trimTexts(data.en)
       };
 
       if (editingLogId) {
@@ -609,13 +644,21 @@ export default function AdminDashboard() {
                   </div>
                   <div className="col-span-2 flex items-center gap-3"><input type="checkbox" id="exp" checked={logData.isExpandable} onChange={e => setLogData({...logData, isExpandable: e.target.checked})} /><label htmlFor="exp" className="text-sm">Enable Expand</label></div>
                 </div>
-                <div className="flex border-b border-white/10"><button type="button" onClick={() => setActiveTab("ar")} className={`flex-1 py-3 ${activeTab==="ar"?"text-cyan border-b-2 border-cyan":"text-white/50"}`}>AR</button><button type="button" onClick={() => setActiveTab("en")} className={`flex-1 py-3 ${activeTab==="en"?"text-cyan border-b-2 border-cyan":"text-white/50"}`}>EN</button></div>
-                <div className="space-y-4">
-                  <input type="text" placeholder="Title" value={logData[activeTab].title} onChange={e => handleTextChange(activeTab, "title", e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white" required />
-                  <textarea placeholder="Description" value={logData[activeTab].description} onChange={e => handleTextChange(activeTab, "description", e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white h-24" required />
-                  {logData.isExpandable && <textarea placeholder="Full Content" value={logData[activeTab].content} onChange={e => handleTextChange(activeTab, "content", e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white h-40" required />}
-                </div>
-                <button type="submit" disabled={isSubmitting} className="w-full py-4 bg-cyan/10 text-cyan font-bold rounded-lg border border-cyan/50 hover:bg-cyan hover:text-black">
+                <BilingualLogFields
+                  value={logData}
+                  onChange={changeLogText}
+                  fields={logFields}
+                  missing={showLogGaps ? logGaps.missing : []}
+                />
+                {showLogGaps && (
+                  <MissingLanguageNotice
+                    gaps={logGaps}
+                    busy={logTranslator.busy || isSubmitting}
+                    error={logTranslator.error}
+                    onTranslateAndSave={translateMissingAndSave}
+                  />
+                )}
+                <button type="submit" disabled={isSubmitting || logTranslator.busy} className="w-full py-4 bg-cyan/10 text-cyan font-bold rounded-lg border border-cyan/50 hover:bg-cyan hover:text-black disabled:opacity-50">
                   {isSubmitting ? "SAVING..." : (editingLogId ? "UPDATE LOG" : "SAVE LOG")}
                 </button>
               </form>
@@ -632,10 +675,15 @@ export default function AdminDashboard() {
               <div className="flex justify-between mb-6"><h3 className="text-2xl font-bold">{editingSkillId ? "Edit Category" : "Add Category"}</h3><button onClick={() => setIsSkillModalOpen(false)} className="text-white/50 hover:text-red-500">✖</button></div>
               <form onSubmit={handleSkillSubmit} className="space-y-6">
                 <input type="number" value={skillData.order} onChange={e => setSkillData({...skillData, order: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white" required placeholder="Order (1, 2...)" />
-                <div className="grid grid-cols-2 gap-4">
-                  <input type="text" placeholder="AR Title" value={skillData.arTitle} onChange={e => setSkillData({...skillData, arTitle: e.target.value})} className="bg-black/50 border border-white/10 rounded-lg p-3 text-white" required />
-                  <input type="text" placeholder="EN Title" value={skillData.enTitle} onChange={e => setSkillData({...skillData, enTitle: e.target.value})} className="bg-black/50 border border-white/10 rounded-lg p-3 text-white" required />
-                </div>
+                <BilingualField
+                  label="CATEGORY TITLE"
+                  context="skill"
+                  value={{ ar: skillData.arTitle, en: skillData.enTitle }}
+                  onChange={(langKey, text) => setSkillData(prev => ({ ...prev, [langKey === "ar" ? "arTitle" : "enTitle"]: text }))}
+                  placeholders={{ ar: "العنوان بالعربية", en: "English title" }}
+                  maxLength={80}
+                  required
+                />
                 <textarea placeholder="Skills (comma separated)" value={skillData.itemsStr} onChange={e => setSkillData({...skillData, itemsStr: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-white h-24" required />
                 <button type="submit" disabled={isSubmitting} className="w-full py-4 bg-cyan/10 text-cyan font-bold rounded-lg border border-cyan/50 hover:bg-cyan hover:text-black">
                   {editingSkillId ? "UPDATE CATEGORY" : "SAVE CATEGORY"}
@@ -652,10 +700,15 @@ export default function AdminDashboard() {
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-2xl bg-[#0a0a0a] border border-cyan/30 rounded-2xl p-6 shadow-2xl">
               <div className="flex justify-between mb-6"><h3 className="text-2xl font-bold">{editingProjectId ? "Edit Project" : "Add Project"}</h3><button onClick={() => setIsProjectModalOpen(false)} className="text-white/50 hover:text-red-500">✖</button></div>
               <form onSubmit={handleProjectSubmit} className="space-y-5">
-                <div className="grid grid-cols-2 gap-4">
-                  <input type="text" placeholder="Arabic name" value={projectData.arName} onChange={e => setProjectData({...projectData, arName: e.target.value})} className="bg-black/50 border border-white/10 rounded-lg p-3 text-white" required />
-                  <input type="text" placeholder="English name" value={projectData.enName} onChange={e => setProjectData({...projectData, enName: e.target.value})} className="bg-black/50 border border-white/10 rounded-lg p-3 text-white" required />
-                </div>
+                <BilingualField
+                  label="PROJECT NAME"
+                  context="project"
+                  value={{ ar: projectData.arName, en: projectData.enName }}
+                  onChange={(langKey, text) => setProjectData(prev => ({ ...prev, [langKey === "ar" ? "arName" : "enName"]: text }))}
+                  placeholders={{ ar: "الاسم بالعربية", en: "English name" }}
+                  maxLength={80}
+                  required
+                />
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs text-cyan font-mono">PROGRESS</label>
