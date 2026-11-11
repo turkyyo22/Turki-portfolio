@@ -7,6 +7,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, addDoc, getDocs, updateDoc, doc, setDoc, getDoc, query, orderBy, deleteDoc } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
 import AssistantSettings from "@/components/admin/AssistantSettings";
+import QuestionsEditor from "@/components/admin/QuestionsEditor";
 import BilingualField from "@/components/admin/translator/BilingualField";
 import BilingualLogFields from "@/components/admin/translator/BilingualLogFields";
 import MissingLanguageNotice from "@/components/admin/translator/MissingLanguageNotice";
@@ -474,6 +475,8 @@ export default function AdminDashboard() {
         </section>
 
         <AssistantSettings />
+
+        <QuestionsEditor />
 
         {/* قسم إدارة السجلات */}
         <section className="bg-glass border border-white/10 rounded-2xl p-6 flex flex-col h-[400px]">

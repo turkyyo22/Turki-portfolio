@@ -10,7 +10,8 @@ import ScrollToTop from "@/components/ScrollToTop";
 import SiteNav from "@/components/SiteNav";
 import TechStack from "@/components/TechStack";
 import { getDictionary } from "@/get-dictionary";
-import { getCvMeta, getPosts, getProjectsMenu, getSkills, getSocials } from "@/lib/server/content";
+import { localizeQuestions } from "@/lib/content/questions";
+import { getCvMeta, getPosts, getProjectsMenu, getQuestions, getSkills, getSocials } from "@/lib/server/content";
 
 // Content is rendered on the server and cached. The admin dashboard refreshes it
 // on save; this is the fallback refresh interval (in seconds).
@@ -18,15 +19,26 @@ export const revalidate = 300;
 
 export default async function Home({ params }) {
   const { lang } = await params;
-  const [dict, posts, skills, projectsMenu, socials, cv] = await Promise.all([
+  const [dict, posts, skills, projectsMenu, socials, cv, questions] = await Promise.all([
     getDictionary(lang),
     getPosts(),
     getSkills(),
     getProjectsMenu(),
     getSocials(),
     getCvMeta(),
+    getQuestions(),
   ]);
   const publishedSlugs = posts.map((post) => post.slug).filter(Boolean);
+
+  // Suggested questions come from the admin dashboard when saved there, otherwise from the dictionary.
+  const heroDict = {
+    ...dict.hero,
+    aiCard: { ...dict.hero.aiCard, suggestions: localizeQuestions(questions?.card, lang) ?? dict.hero.aiCard.suggestions },
+  };
+  const assistantDict = {
+    ...dict.assistant,
+    suggestions: localizeQuestions(questions?.chat, lang) ?? dict.assistant.suggestions,
+  };
 
   return (
     <div className="relative min-h-screen overflow-hidden">
@@ -50,7 +62,7 @@ export default async function Home({ params }) {
       />
 
       <main id="main" tabIndex={-1} className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center px-4 pb-8 pt-24 outline-none sm:px-8">
-        <Hero dict={dict.hero} lang={lang} cvAvailable={cv.available} />
+        <Hero dict={heroDict} lang={lang} cvAvailable={cv.available} />
         <ProjectsSection dict={dict.projects} lang={lang} posts={posts} />
         <ResumeSection dict={dict.resume} cv={cv} />
         <TechStack dict={dict.tech} lang={lang} skills={skills} />
@@ -59,7 +71,7 @@ export default async function Home({ params }) {
 
       <Footer dict={dict.footer} lang={lang} />
       <MouseSpotlight />
-      <AssistantWidget lang={lang} dict={dict.assistant} />
+      <AssistantWidget lang={lang} dict={assistantDict} />
       <ScrollToTop label={dict.nav.home} />
     </div>
   );

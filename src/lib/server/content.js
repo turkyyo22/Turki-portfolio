@@ -9,6 +9,7 @@ import {
   normalizeSocials,
   parseDataUrl,
 } from "@/lib/content/normalize";
+import { normalizeQuestions, QUESTIONS_DOC } from "@/lib/content/questions";
 
 // Everything the admin dashboard edits is cached under one tag, so a single
 // revalidation after a save refreshes the whole public site.
@@ -31,6 +32,19 @@ export async function getProjectsMenu() {
 
 export async function getSocials() {
   return normalizeSocials(await getDocument("settings/socials", { cache: CONTENT_CACHE }));
+}
+
+/**
+ * The admin's suggested questions, or null when none are saved (the dictionary
+ * defaults apply). Optional content: a failed read never breaks the page.
+ */
+export async function getQuestions() {
+  try {
+    return normalizeQuestions(await getDocument(QUESTIONS_DOC, { cache: CONTENT_CACHE }));
+  } catch (error) {
+    console.error("[content] Using the default questions:", error.message);
+    return null;
+  }
 }
 
 export async function getCvMeta() {
