@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { doc, getDoc, runTransaction } from "firebase/firestore";
 
+import PromptAssistant from "@/components/admin/PromptAssistant";
 import ChatMessage from "@/components/assistant/ChatMessage";
 import { refreshPublicSite, getAdminIdToken } from "@/lib/adminApi";
 import { DEFAULT_PROMPT } from "@/lib/assistant/defaultPrompt";
@@ -47,7 +48,12 @@ export default function AssistantSettings() {
   const [draft, setDraft] = useState(DEFAULT_DRAFT);
   const [history, setHistory] = useState([]);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [notice, setNotice] = useState(null); // { tone: "success" | "error", text }
+  const [notice, setNotice] = useState(null); // { tone: "success" | "error", text, undo? }
+  // The last change made with "＋ Add info" / "✎ Edit a section": highlighted in the editor, and undoable.
+  const [highlight, setHighlight] = useState(null); // { text, start, end }
+  const [undoPrompt, setUndoPrompt] = useState(null);
+  const editorRef = useRef(null);
+  const backdropRef = useRef(null);
 
   const baseline = live ?? DEFAULT_DRAFT;
   const isDirty = !sameDraft(draft, baseline);
@@ -151,6 +157,38 @@ export default function AssistantSettings() {
     setNotice(null);
   };
 
+  // A change approved in the smart editor: put it in the draft and show where it went.
+  const applyAssist = (text, { range, label, isNew }) => {
+    setUndoPrompt(draft.prompt);
+    setDraft((current) => ({ ...current, prompt: text }));
+    setHighlight(range ? { text, ...range } : null);
+    setNotice({
+      tone: "success",
+      text: `${isNew ? `Added the section «${label}»` : `Updated «${label}»`}. It's highlighted in the editor. Test it, then press Publish to make it live.`,
+      undo: true,
+    });
+  };
+
+  const undoAssist = () => {
+    if (undoPrompt === null) return;
+    setDraft((current) => ({ ...current, prompt: undoPrompt }));
+    setUndoPrompt(null);
+    setHighlight(null);
+    setNotice({ tone: "success", text: "Change undone." });
+  };
+
+  const visibleHighlight = highlight && highlight.text === draft.prompt ? highlight : null;
+
+  // Scroll the editor to the highlighted change.
+  useEffect(() => {
+    const textarea = editorRef.current;
+    const mark = backdropRef.current?.querySelector("mark");
+    if (!visibleHighlight || !textarea || !mark) return;
+    textarea.scrollTop = Math.max(0, mark.offsetTop - 64);
+    backdropRef.current.scrollTop = textarea.scrollTop;
+    textarea.scrollIntoView({ block: "nearest" });
+  }, [visibleHighlight]);
+
   const loadIntoEditor = (next, label) => {
     if (isDirty && !window.confirm("Replace your unpublished edits in the editor?")) return;
     setDraft({ prompt: next.prompt, includeProjects: next.includeProjects !== false, includeCv: next.includeCv !== false });
@@ -194,17 +232,44 @@ export default function AssistantSettings() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="flex min-w-0 flex-col gap-4">
+          <PromptAssistant prompt={draft.prompt} disabled={isPublishing} onApply={applyAssist} />
+
           <label htmlFor="assistant-prompt" className="sr-only">
             Assistant prompt
           </label>
-          <textarea
-            id="assistant-prompt"
-            value={draft.prompt}
-            onChange={(event) => setDraft((current) => ({ ...current, prompt: event.target.value }))}
-            dir="auto"
-            spellCheck={false}
-            className="h-[460px] w-full resize-y rounded-xl border border-white/10 bg-black/50 p-4 font-mono text-sm leading-relaxed text-white focus:border-cyan/50 focus:outline-none"
-          />
+          {/* A copy of the text sits behind the transparent editor and paints the highlight. */}
+          <div className="relative rounded-xl bg-black/50">
+            {visibleHighlight && (
+              <div
+                ref={backdropRef}
+                aria-hidden="true"
+                dir="auto"
+                className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-xl border border-transparent p-4 font-mono text-sm leading-relaxed text-transparent [scrollbar-gutter:stable]"
+              >
+                {visibleHighlight.text.slice(0, visibleHighlight.start)}
+                <mark className="rounded-sm bg-cyan/25 text-transparent shadow-[0_0_0_2px_rgba(0,229,255,0.35)]">
+                  {visibleHighlight.text.slice(visibleHighlight.start, visibleHighlight.end)}
+                </mark>
+                {visibleHighlight.text.slice(visibleHighlight.end)}
+                {"\n"}
+              </div>
+            )}
+            <textarea
+              ref={editorRef}
+              id="assistant-prompt"
+              value={draft.prompt}
+              onChange={(event) => {
+                setHighlight(null);
+                setDraft((current) => ({ ...current, prompt: event.target.value }));
+              }}
+              onScroll={(event) => {
+                if (backdropRef.current) backdropRef.current.scrollTop = event.currentTarget.scrollTop;
+              }}
+              dir="auto"
+              spellCheck={false}
+              className="relative block h-[460px] w-full resize-y rounded-xl border border-white/10 bg-transparent p-4 font-mono text-sm leading-relaxed text-white [scrollbar-gutter:stable] focus:border-cyan/50 focus:outline-none"
+            />
+          </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
             <div className="flex flex-wrap gap-5">
@@ -267,6 +332,14 @@ export default function AssistantSettings() {
               }`}
             >
               {notice.text}
+              {notice.undo && undoPrompt !== null && (
+                <>
+                  {" "}
+                  <button type="button" onClick={undoAssist} className="font-semibold underline underline-offset-2 hover:text-white">
+                    Undo
+                  </button>
+                </>
+              )}
             </p>
           )}
 

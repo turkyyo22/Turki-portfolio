@@ -5,6 +5,7 @@ export const ASSISTANT_LIMITS = Object.freeze({
   maxAssistantMessageChars: 4000,
   maxConversationChars: 24000,
   maxPromptChars: 40000, // the editable prompt in the admin dashboard
+  maxAssistNoteChars: 2000, // a note for the smart prompt editor (+ Add info / Edit a section)
   maxProjectContentChars: 1500, // per project and language, when projects are added to the prompt
 });
 

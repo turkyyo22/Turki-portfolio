@@ -20,6 +20,12 @@ const AI_ERRORS = {
   too_long: "This text is too long to translate in one go.",
   nothing_to_translate: "There's nothing to translate yet.",
   body_too_large: "This text is too long to send in one go.",
+  ai_bad_plan: "The AI's suggestion didn't fit the prompt. Try again, or pick the section yourself.",
+  note_required: "Write something first.",
+  note_too_long: "The note is too long (max 2,000 characters).",
+  prompt_required: "The prompt is empty.",
+  prompt_too_long: "The prompt would be longer than 40,000 characters.",
+  unknown_section: "That section isn't in the prompt anymore. Pick it again.",
   missing_token: "Your session expired. Sign in again.",
   invalid_token: "Your session expired. Sign in again.",
   not_admin: "This account isn't the site admin.",
@@ -89,6 +95,15 @@ async function postJson(url, payload, { signal } = {}) {
 export async function translateFields({ from, to, context, fields, signal }) {
   const body = await postJson("/api/admin/translate", { from, to, context, fields }, { signal });
   return body.fields;
+}
+
+/**
+ * Asks the AI where and how to put a note in the assistant prompt. Returns an
+ * edit plan for applyPromptEdit(); nothing is changed until the admin applies it.
+ */
+export async function planPromptEdit({ mode, prompt, note, sectionId, action, signal }) {
+  const body = await postJson("/api/admin/prompt-assist", { mode, prompt, note, sectionId, action }, { signal });
+  return body.plan;
 }
 
 /** Uploads a (pre-compressed) project image and returns its public URL. Throws a readable error. */
