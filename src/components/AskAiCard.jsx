@@ -25,6 +25,10 @@ const REACH_PX = 320;
 const LOOK_RANGE_PX = 240;
 // How far (px) the card rises toward the viewer while the cursor is over it.
 const HOVER_LIFT_PX = 28;
+// On touch screens the card turns this far (degrees) either way as it scrolls past,
+// and its rim glows this brightly (0 to 1) while it is in the middle of the screen.
+const SCROLL_TILT_DEG = 12;
+const SCROLL_GLOW = 0.8;
 const TILT_SPRING = { stiffness: 150, damping: 17, mass: 0.7 };
 const LIGHT_SPRING = { stiffness: 260, damping: 28 };
 
@@ -61,8 +65,10 @@ function toDecks(questions) {
  * Hero card that sends a question straight to the assistant, drawn in 3D.
  * As the cursor comes near, the card turns toward it, its rim lights up on the
  * side facing the cursor and the robot's eyes follow it; over the card, it lifts
- * and a light follows the cursor across the glass. These effects only move with
- * the visitor's own mouse, so they stay on with reduced motion; touch is ignored.
+ * and a light follows the cursor across the glass. Touch screens have no cursor,
+ * so there the card turns toward the middle of the screen as the page scrolls,
+ * with the light and the robot's eyes following. These effects only move with
+ * the visitor's own mouse or scrolling, so they stay on with reduced motion.
  */
 export default function AskAiCard({ dict, lang }) {
   const [question, setQuestion] = useState("");
@@ -102,11 +108,10 @@ export default function AskAiCard({ dict, lang }) {
 
     let frame = 0;
     let pointer = null;
+    // Phones and tablets: the main input cannot hover, so the card follows scrolling instead.
+    const noHover = window.matchMedia("(hover: none)");
 
-    const update = () => {
-      frame = 0;
-      if (!pointer) return;
-
+    const followCursor = () => {
       const box = frameEl.getBoundingClientRect();
       const halfWidth = box.width / 2;
       const halfHeight = box.height / 2;
@@ -133,6 +138,34 @@ export default function AskAiCard({ dict, lang }) {
         eyeY.set((by / distance) * reach);
       }
     };
+
+    const followScroll = () => {
+      const box = frameEl.getBoundingClientRect();
+      const middle = window.innerHeight / 2;
+      // The card makes its whole turn while most of it is on screen (until a quarter
+      // of it is past the edge). On a phone the card nearly fills the screen, so
+      // spreading the turn over its whole trip would leave it almost still.
+      const room = Math.max(120, (window.innerHeight - box.height) / 2 + box.height / 4);
+      // Where the middle of the screen is, seen from the card: -1 while the card is
+      // coming in at the bottom, 0 when it is centred, 1 as it leaves at the top.
+      const travel = clampUnit((middle - (box.top + box.height / 2)) / room);
+
+      lookX.set(0);
+      lookY.set((travel * SCROLL_TILT_DEG) / MAX_TILT_DEG);
+      near.set((1 - travel * travel) * SCROLL_GLOW);
+      over.set(0);
+      // The light runs along the screen's middle line as it crosses the card.
+      lightX.set(box.width / 2);
+      lightY.set(Math.max(0, Math.min(box.height, middle - box.top)));
+      eyeX.set(0);
+      eyeY.set(travel);
+    };
+
+    const update = () => {
+      frame = 0;
+      if (pointer) followCursor();
+      else if (noHover.matches) followScroll();
+    };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(update);
     };
@@ -143,19 +176,22 @@ export default function AskAiCard({ dict, lang }) {
     };
     // The cursor left the window: settle back into the resting pose.
     const onOut = (event) => {
-      if (event.relatedTarget) return;
+      if (event.relatedTarget || event.pointerType === "touch") return;
       pointer = null;
       for (const value of [lookX, lookY, near, over, eyeX, eyeY]) value.set(0);
     };
 
     window.addEventListener("pointermove", onMove, { passive: true });
-    // Scrolling moves the card under a still cursor.
+    // Scrolling moves the card under a still cursor, or past the middle of a touch screen.
     window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule, { passive: true });
     document.addEventListener("pointerout", onOut);
+    schedule();
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
       document.removeEventListener("pointerout", onOut);
     };
   }, [lookX, lookY, near, over, lightX, lightY, eyeX, eyeY]);
