@@ -98,7 +98,7 @@ export default function Contact({ dict, socials }) {
         >
           {status === "sent" ? (
             <div role="status" className="flex flex-col items-center justify-center py-10 text-center">
-              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-cyan/50 bg-cyan/20 shadow-[0_0_20px_rgba(34,211,238,0.3)]">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-cyan/50 bg-cyan/20 shadow-[0_0_20px_rgb(var(--accent-cyan-rgb)/0.3)]">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-8 w-8 text-cyan" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                 </svg>

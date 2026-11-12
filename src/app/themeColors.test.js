@@ -122,7 +122,8 @@ describe("accent colours", () => {
     // ACCENTS table for code that needs the colour itself (three.js, particles).
     // The social share image keeps the brand cyan: it is drawn once, for everyone.
     const allowed = new Set(["app/globals.css", "lib/accent.js", "app/[lang]/opengraph-image.js"]);
-    const hardCoded = /#00e5ff|#3b82f6|rgba?\(\s*0\s*,\s*229\s*,\s*255|rgba?\(\s*59\s*,\s*130\s*,\s*246/i;
+    // The site's cyan and blue, and Tailwind's cyan-400 (#22D3EE), which some glows used.
+    const hardCoded = /#00e5ff|#3b82f6|#22d3ee|rgba?\(\s*0\s*,\s*229\s*,\s*255|rgba?\(\s*59\s*,\s*130\s*,\s*246|rgba?\(\s*34\s*,\s*211\s*,\s*238/i;
 
     const offenders = readdirSync(srcDir, { recursive: true })
       .map((path) => path.replaceAll("\\", "/"))

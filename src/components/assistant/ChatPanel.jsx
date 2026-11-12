@@ -57,7 +57,7 @@ export default function ChatPanel({ lang, dict, messages, isLoading, suggestions
       exit={{ opacity: 0, y: 24, scale: 0.96 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
       style={{ transformOrigin: "bottom left" }}
-      className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-gradient-to-b from-[#0b1220] to-[#050a15] sm:inset-auto sm:bottom-6 sm:left-6 sm:h-[min(600px,calc(100dvh-3rem))] sm:w-[390px] sm:rounded-2xl sm:border sm:border-cyan/25 sm:from-[#0b1220]/95 sm:to-[#050a15]/95 sm:shadow-[0_0_30px_rgba(34,211,238,0.15)] sm:backdrop-blur-xl"
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-gradient-to-b from-[#0b1220] to-[#050a15] sm:inset-auto sm:bottom-6 sm:left-6 sm:h-[min(600px,calc(100dvh-3rem))] sm:w-[390px] sm:rounded-2xl sm:border sm:border-cyan/25 sm:from-[#0b1220]/95 sm:to-[#050a15]/95 sm:shadow-[0_0_30px_rgb(var(--accent-cyan-rgb)/0.15)] sm:backdrop-blur-xl"
     >
       <header className="relative flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-cyan/15 via-blue/10 to-transparent p-4">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan/60 to-transparent" />
