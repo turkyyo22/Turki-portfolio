@@ -13,12 +13,16 @@
 //   glow, deep          lighter and darker shades: --accent-glow and --accent-deep
 //   metal, ambient      used only by the 3D robot (its ears and antenna, and the
 //                       tint of the light around it)
+//
+// The primary colour is also used for text on the near-black page and behind the
+// dark text of buttons, so it needs a contrast of at least 4.5:1 with #050A15.
+// That is why the purple is no darker than Tailwind's purple-500.
 
 export const ACCENTS = [
   { id: "cyan", primary: "#00E5FF", secondary: "#3B82F6", glow: "#7DF9FF", deep: "#00B8D9", metal: "#0B9FB5", ambient: "#9FDCFF" },
-  { id: "purple", primary: "#C084FC", secondary: "#818CF8", glow: "#D8B4FE", deep: "#9333EA", metal: "#865CB0", ambient: "#D9C6FF" },
-  { id: "green", primary: "#4ADE80", secondary: "#14B8A6", glow: "#86EFAC", deep: "#16A34A", metal: "#349B5A", ambient: "#BFF5D6" },
-  { id: "amber", primary: "#FBBF24", secondary: "#F97316", glow: "#FCD34D", deep: "#D97706", metal: "#B08619", ambient: "#FFE2A8" },
+  { id: "purple", primary: "#A855F7", secondary: "#9333EA", glow: "#D8B4FE", deep: "#6B21A8", metal: "#763BAD", ambient: "#D9C2FF" },
+  { id: "silver", primary: "#E2E8F0", secondary: "#94A3B8", glow: "#F8FAFC", deep: "#64748B", metal: "#9EA2A8", ambient: "#E5E7EB" },
+  { id: "amber", primary: "#D97706", secondary: "#B45309", glow: "#FBBF24", deep: "#92400E", metal: "#985304", ambient: "#FFD9A0" },
 ];
 
 export const DEFAULT_ACCENT = ACCENTS[0].id;
@@ -59,8 +63,14 @@ export function setAccent(id) {
     window.dispatchEvent(new Event(CHANGE_EVENT));
   };
   // Where the browser supports it, the old colours fade into the new ones.
-  if (typeof document.startViewTransition === "function") document.startViewTransition(apply);
-  else apply();
+  if (typeof document.startViewTransition === "function") {
+    const transition = document.startViewTransition(apply);
+    // When the browser skips the fade (a hidden tab, a busy page), these promises
+    // reject. The colour still changes, so that isn't an error worth reporting.
+    Promise.allSettled([transition?.ready, transition?.finished, transition?.updateCallbackDone]);
+  } else {
+    apply();
+  }
 
   try {
     if (id === DEFAULT_ACCENT) localStorage.removeItem(STORAGE_KEY);

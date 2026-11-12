@@ -13,7 +13,16 @@ function fakeBrowser({ saved = null, storageBlocked = false, viewTransitions = f
       removeAttribute: (name) => attributes.delete(name),
     },
   };
-  if (viewTransitions) document.startViewTransition = vi.fn((update) => update());
+  if (viewTransitions) {
+    // Returns a stand-in for a ViewTransition. With "skipped", the browser gave up on
+    // the fade (it does that in hidden tabs or when the page is busy) and its promises reject.
+    document.startViewTransition = vi.fn((update) => {
+      update();
+      const outcome = () =>
+        viewTransitions === "skipped" ? Promise.reject(new DOMException("Transition was skipped", "AbortError")) : Promise.resolve();
+      return { ready: outcome(), finished: outcome(), updateCallbackDone: Promise.resolve() };
+    });
+  }
 
   const blocked = () => {
     throw new Error("storage is blocked");
@@ -62,7 +71,28 @@ describe("ACCENTS", () => {
     expect(accentById("red").id).toBe(DEFAULT_ACCENT);
     expect(accentById(undefined).id).toBe(DEFAULT_ACCENT);
   });
+
+  it.each(ACCENTS.map((accent) => [accent.id, accent.primary]))(
+    "%s is readable as text on the page and behind the dark button text",
+    (_, primary) => {
+      // The page background and the button text are both #050A15, and WCAG asks
+      // for 4.5:1 for normal-size text.
+      expect(contrastRatio(primary, "#050A15")).toBeGreaterThanOrEqual(4.5);
+    },
+  );
 });
+
+/** WCAG contrast ratio between two #RRGGBB colours (1 to 21). */
+function contrastRatio(first, second) {
+  const luminance = (hex) => {
+    const [r, g, b] = [1, 3, 5]
+      .map((start) => parseInt(hex.slice(start, start + 2), 16) / 255)
+      .map((value) => (value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const [lighter, darker] = [luminance(first), luminance(second)].sort((a, b) => b - a);
+  return (lighter + 0.05) / (darker + 0.05);
+}
 
 describe("the <head> script", () => {
   it("applies a colour saved on an earlier visit", () => {
@@ -95,11 +125,11 @@ describe("setAccent", () => {
     const listener = vi.fn();
     const stop = onAccentChange(listener);
 
-    setAccent("green");
+    setAccent("silver");
 
-    expect(browser.attributes.get("data-accent")).toBe("green");
-    expect(browser.stored.get("accent")).toBe("green");
-    expect(currentAccent()).toBe("green");
+    expect(browser.attributes.get("data-accent")).toBe("silver");
+    expect(browser.stored.get("accent")).toBe("silver");
+    expect(currentAccent()).toBe("silver");
     expect(listener).toHaveBeenCalledTimes(1);
     stop();
   });
@@ -133,6 +163,16 @@ describe("setAccent", () => {
 
     expect(browser.document.startViewTransition).toHaveBeenCalledTimes(1);
     expect(browser.attributes.get("data-accent")).toBe("purple");
+  });
+
+  it("changes the colour without an uncaught error when the browser skips the fade", async () => {
+    // Vitest fails the run on an unhandled promise rejection, so this also checks that
+    // the rejected promises of a skipped transition are handled.
+    const browser = useFakeBrowser({ viewTransitions: "skipped" });
+    setAccent("amber");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(browser.attributes.get("data-accent")).toBe("amber");
   });
 
   it("still applies the colour when storage is blocked", () => {
