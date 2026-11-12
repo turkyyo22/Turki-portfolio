@@ -25,8 +25,10 @@ const REACH_PX = 320;
 const LOOK_RANGE_PX = 240;
 // How far (px) the card rises toward the viewer while the cursor is over it.
 const HOVER_LIFT_PX = 28;
-// On touch screens the rim glows this brightly (0 to 1) while the card is in the middle of the screen.
-const SCROLL_GLOW = 0.6;
+// On touch screens the card turns this far (degrees) either way as it scrolls past,
+// and its rim glows this brightly (0 to 1) while it is in the middle of the screen.
+const SCROLL_TILT_DEG = 12;
+const SCROLL_GLOW = 0.8;
 const TILT_SPRING = { stiffness: 150, damping: 17, mass: 0.7 };
 const LIGHT_SPRING = { stiffness: 260, damping: 28 };
 
@@ -140,12 +142,16 @@ export default function AskAiCard({ dict, lang }) {
     const followScroll = () => {
       const box = frameEl.getBoundingClientRect();
       const middle = window.innerHeight / 2;
-      // Where the middle of the screen is, seen from the card: -1 as the card comes in
-      // at the bottom, 0 when it is centred, 1 as it leaves at the top.
-      const travel = clampUnit((middle - (box.top + box.height / 2)) / (middle + box.height / 2));
+      // The card makes its whole turn while most of it is on screen (until a quarter
+      // of it is past the edge). On a phone the card nearly fills the screen, so
+      // spreading the turn over its whole trip would leave it almost still.
+      const room = Math.max(120, (window.innerHeight - box.height) / 2 + box.height / 4);
+      // Where the middle of the screen is, seen from the card: -1 while the card is
+      // coming in at the bottom, 0 when it is centred, 1 as it leaves at the top.
+      const travel = clampUnit((middle - (box.top + box.height / 2)) / room);
 
       lookX.set(0);
-      lookY.set(travel);
+      lookY.set((travel * SCROLL_TILT_DEG) / MAX_TILT_DEG);
       near.set((1 - travel * travel) * SCROLL_GLOW);
       over.set(0);
       // The light runs along the screen's middle line as it crosses the card.
