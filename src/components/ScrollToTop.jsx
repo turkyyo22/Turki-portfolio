@@ -45,7 +45,9 @@ export default function ScrollToTop({ label }) {
           }}
           whileTap={{ scale: 0.9 }}
           // تم وضع الزر في أسفل اليمين ليكون مناسباً ولا يغطي المحتوى
-          className="fixed bottom-4 right-4 z-50 p-2.5 sm:bottom-8 sm:right-8 sm:p-3 bg-glass border border-cyan/50 text-cyan rounded-full backdrop-blur-md transition-colors duration-200 hover:bg-cyan hover:text-black transform-gpu backface-hidden antialiased flex items-center justify-center"
+          // z-40 keeps it under the chat (z-50), which fills the whole screen on phones
+          // and has its send button in this same corner, and under open dialogs.
+          className="fixed bottom-4 right-4 z-40 p-2.5 sm:bottom-8 sm:right-8 sm:p-3 bg-glass border border-cyan/50 text-cyan rounded-full backdrop-blur-md transition-colors duration-200 hover:bg-cyan hover:text-black transform-gpu backface-hidden antialiased flex items-center justify-center"
         >
           {/* أيقونة سهم للأعلى */}
           <svg
