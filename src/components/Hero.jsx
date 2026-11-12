@@ -44,10 +44,10 @@ export default function Hero({ dict, lang, cvAvailable }) {
         <p className="text-lg md:text-xl font-semibold text-white/90">{dict.role}</p>
         <p className="max-w-xl text-muted text-base md:text-lg leading-relaxed">{dict.description}</p>
 
-        <p className="inline-flex items-center gap-2.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-1.5 text-sm font-medium text-emerald-300">
+        <p className="inline-flex items-center gap-2.5 rounded-full border border-green-400/30 bg-green-400/10 px-4 py-1.5 text-sm font-medium text-green-300">
           <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-70" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-green-400" />
           </span>
           {dict.status}
         </p>

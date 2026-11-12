@@ -125,11 +125,11 @@ describe("setAccent", () => {
     const listener = vi.fn();
     const stop = onAccentChange(listener);
 
-    setAccent("silver");
+    setAccent("mint");
 
-    expect(browser.attributes.get("data-accent")).toBe("silver");
-    expect(browser.stored.get("accent")).toBe("silver");
-    expect(currentAccent()).toBe("silver");
+    expect(browser.attributes.get("data-accent")).toBe("mint");
+    expect(browser.stored.get("accent")).toBe("mint");
+    expect(currentAccent()).toBe("mint");
     expect(listener).toHaveBeenCalledTimes(1);
     stop();
   });

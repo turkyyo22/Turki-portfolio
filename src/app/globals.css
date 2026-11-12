@@ -36,13 +36,13 @@
   --accent-deep: #6B21A8;
 }
 
-:root[data-accent="silver"] {
-  --accent-cyan: #E2E8F0;
-  --accent-cyan-rgb: 226 232 240;
-  --accent-blue: #94A3B8;
-  --accent-blue-rgb: 148 163 184;
-  --accent-glow: #F8FAFC;
-  --accent-deep: #64748B;
+:root[data-accent="mint"] {
+  --accent-cyan: #34D399;
+  --accent-cyan-rgb: 52 211 153;
+  --accent-blue: #14B8A6;
+  --accent-blue-rgb: 20 184 166;
+  --accent-glow: #6EE7B7;
+  --accent-deep: #059669;
 }
 
 :root[data-accent="amber"] {

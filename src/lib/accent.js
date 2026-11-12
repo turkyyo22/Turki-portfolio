@@ -21,7 +21,7 @@
 export const ACCENTS = [
   { id: "cyan", primary: "#00E5FF", secondary: "#3B82F6", glow: "#7DF9FF", deep: "#00B8D9", metal: "#0B9FB5", ambient: "#9FDCFF" },
   { id: "purple", primary: "#A855F7", secondary: "#9333EA", glow: "#D8B4FE", deep: "#6B21A8", metal: "#763BAD", ambient: "#D9C2FF" },
-  { id: "silver", primary: "#E2E8F0", secondary: "#94A3B8", glow: "#F8FAFC", deep: "#64748B", metal: "#9EA2A8", ambient: "#E5E7EB" },
+  { id: "mint", primary: "#34D399", secondary: "#14B8A6", glow: "#6EE7B7", deep: "#059669", metal: "#24946B", ambient: "#BFF5DF" },
   { id: "amber", primary: "#D97706", secondary: "#B45309", glow: "#FBBF24", deep: "#92400E", metal: "#985304", ambient: "#FFD9A0" },
 ];
 
