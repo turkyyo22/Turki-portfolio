@@ -31,6 +31,17 @@ body {
   scroll-margin-top: 6.5rem;
 }
 
+/* iPhones zoom into a text field whose text is smaller than 16px when it is
+   tapped, which pushes the rest of the form (like the send button) off screen.
+   On touch screens, fields use 16px text so the page stays as laid out. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], .text-lg, .text-xl, .text-2xl),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 /* A visible focus ring for keyboard users, without showing it on mouse clicks */
 :focus-visible {
   outline: 2px solid var(--accent-cyan);
