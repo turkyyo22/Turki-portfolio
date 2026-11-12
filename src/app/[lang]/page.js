@@ -7,6 +7,7 @@ import NetworkBackground from "@/components/NetworkBackground";
 import ProjectsSection from "@/components/projects/ProjectsSection";
 import ResumeSection from "@/components/ResumeSection";
 import ScrollToTop from "@/components/ScrollToTop";
+import ShootingStars from "@/components/ShootingStars";
 import SiteNav from "@/components/SiteNav";
 import TechStack from "@/components/TechStack";
 import { getDictionary } from "@/get-dictionary";
@@ -50,6 +51,7 @@ export default async function Home({ params }) {
       </a>
 
       <NetworkBackground />
+      <ShootingStars />
       <div aria-hidden="true" className="pointer-events-none absolute -left-[10%] -top-[10%] -z-10 h-96 w-96 rounded-full bg-blue/20 blur-[150px]" />
       <div aria-hidden="true" className="pointer-events-none absolute -right-[5%] bottom-[20%] -z-10 h-[30rem] w-[30rem] rounded-full bg-cyan/10 blur-[150px]" />
 

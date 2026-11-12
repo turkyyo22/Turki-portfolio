@@ -185,6 +185,32 @@ body {
   mask-composite: exclude;
 }
 
+/* A shooting star in the page background (see ShootingStars.jsx): a thin streak
+   that fades in from its tail toward a small white head. The glow is kept faint
+   on purpose. JavaScript sets the size and position and animates the flight. */
+.shooting-star {
+  position: absolute;
+  height: 1.5px;
+  border-radius: 9999px;
+  transform-origin: 100% 50%;
+  background: linear-gradient(90deg, transparent, rgb(var(--accent-cyan-rgb) / 0.35) 65%, rgb(255 255 255 / 0.8));
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.shooting-star::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -1px;
+  width: 3px;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 0 6px 1px rgb(var(--accent-cyan-rgb) / 0.5);
+}
+
 /* Honour the visitor's "reduce motion" setting for CSS animations too */
 @media (prefers-reduced-motion: reduce) {
   *,
