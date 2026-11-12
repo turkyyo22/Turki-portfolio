@@ -247,7 +247,7 @@ export default function AssistantSettings() {
                 className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words rounded-xl border border-transparent p-4 font-mono text-sm leading-relaxed text-transparent [scrollbar-gutter:stable]"
               >
                 {visibleHighlight.text.slice(0, visibleHighlight.start)}
-                <mark className="rounded-sm bg-cyan/25 text-transparent shadow-[0_0_0_2px_rgba(0,229,255,0.35)]">
+                <mark className="rounded-sm bg-cyan/25 text-transparent shadow-[0_0_0_2px_rgb(var(--accent-cyan-rgb)/0.35)]">
                   {visibleHighlight.text.slice(visibleHighlight.start, visibleHighlight.end)}
                 </mark>
                 {visibleHighlight.text.slice(visibleHighlight.end)}

@@ -64,7 +64,7 @@ export default function BilingualField({ label, value, onChange, context, requir
                 placeholder={placeholders[lang] || LANG_NAMES[lang]}
                 onChange={(event) => edit(lang, event.target.value)}
                 className={`w-full rounded-lg border bg-black/50 p-3 text-white transition-colors focus:outline-none ${
-                  isAi ? "border-cyan/60 shadow-[0_0_0_1px_rgba(0,229,255,0.35)]" : "border-white/10 focus:border-cyan/50"
+                  isAi ? "border-cyan/60 shadow-[0_0_0_1px_rgb(var(--accent-cyan-rgb)/0.35)]" : "border-white/10 focus:border-cyan/50"
                 } ${canTranslate ? (lang === "ar" ? "pl-28" : "pr-28") : ""}`}
               />
               {canTranslate && (

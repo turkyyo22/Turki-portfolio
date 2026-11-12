@@ -16,7 +16,14 @@
     "askAi": "اسأل المساعد",
     "askAboutProject": "اسأل المساعد عن {name}",
     "emptyProjects": "لا توجد مشاريع منشورة بعد.",
-    "switchLanguage": "التبديل إلى الإنجليزية"
+    "switchLanguage": "التبديل إلى الإنجليزية",
+    "accent": {
+      "label": "لون الموقع",
+      "cyan": "سماوي",
+      "purple": "بنفسجي",
+      "green": "أخضر",
+      "amber": "كهرماني"
+    }
   },
   "hero": {
     "eyebrow": "تم تشغيل النظام",

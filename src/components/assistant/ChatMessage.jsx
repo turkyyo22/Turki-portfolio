@@ -36,7 +36,7 @@ export default function ChatMessage({ message }) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <div dir="auto" className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-gradient-to-br from-cyan to-blue px-4 py-2.5 text-sm font-medium leading-relaxed text-[#050a15] shadow-[0_4px_16px_rgba(0,229,255,0.25)]">
+        <div dir="auto" className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-gradient-to-br from-cyan to-blue px-4 py-2.5 text-sm font-medium leading-relaxed text-[#050a15] shadow-[0_4px_16px_rgb(var(--accent-cyan-rgb)/0.25)]">
           {message.content}
         </div>
       </div>

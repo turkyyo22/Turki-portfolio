@@ -64,7 +64,7 @@ export default function BilingualLogFields({ value, onChange, fields, missing = 
   const inputClass = (field) =>
     `w-full rounded-lg border bg-black/50 p-3 text-white transition-colors focus:outline-none ${
       isAi(tab, field)
-        ? "border-cyan/60 shadow-[0_0_0_1px_rgba(0,229,255,0.35)]"
+        ? "border-cyan/60 shadow-[0_0_0_1px_rgb(var(--accent-cyan-rgb)/0.35)]"
         : isMissing(tab, field)
           ? "border-amber-400/70"
           : "border-white/10 focus:border-cyan/50"

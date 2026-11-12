@@ -34,7 +34,7 @@ export default function Hero({ dict, lang, cvAvailable }) {
         transition={{ duration: 0.7, ease: "easeOut" }}
         className="space-y-6"
       >
-        <p className="text-cyan tracking-widest uppercase text-sm font-semibold drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]">
+        <p className="text-cyan tracking-widest uppercase text-sm font-semibold drop-shadow-[0_0_8px_rgb(var(--accent-cyan-rgb)/0.8)]">
           {dict.eyebrow}
         </p>
         <h1 className="text-6xl md:text-7xl font-bold text-white tracking-tight">
@@ -68,7 +68,7 @@ export default function Hero({ dict, lang, cvAvailable }) {
           <button
             type="button"
             onClick={openAssistant}
-            className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-cyan to-blue px-6 py-3 text-sm font-bold text-[#050a15] shadow-[0_0_24px_rgba(0,229,255,0.35)] transition-all hover:brightness-110 hover:shadow-[0_0_32px_rgba(0,229,255,0.55)] active:scale-95"
+            className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-cyan to-blue px-6 py-3 text-sm font-bold text-[#050a15] shadow-[0_0_24px_rgb(var(--accent-cyan-rgb)/0.35)] transition-all hover:brightness-110 hover:shadow-[0_0_32px_rgb(var(--accent-cyan-rgb)/0.55)] active:scale-95"
           >
             <span aria-hidden="true">✦</span>
             {dict.ctaAsk}

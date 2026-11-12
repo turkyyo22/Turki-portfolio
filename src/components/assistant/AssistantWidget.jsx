@@ -160,11 +160,11 @@ export default function AssistantWidget({ lang, dict }) {
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.94 }}
             transition={{ duration: 0.15 }}
-            className="fixed bottom-4 left-4 z-50 flex h-12 w-12 items-center sm:bottom-6 sm:left-6 sm:h-14 sm:w-14 justify-center rounded-full border border-cyan/50 bg-glass shadow-[0_0_20px_rgba(0,229,255,0.3)] backdrop-blur-md transition-colors hover:bg-cyan/20"
+            className="fixed bottom-4 left-4 z-50 flex h-12 w-12 items-center sm:bottom-6 sm:left-6 sm:h-14 sm:w-14 justify-center rounded-full border border-cyan/50 bg-glass shadow-[0_0_20px_rgb(var(--accent-cyan-rgb)/0.3)] backdrop-blur-md transition-colors hover:bg-cyan/20"
           >
             <CoreBot size={36} />
             {hasUnread && (
-              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-cyan text-[11px] font-bold text-[#050a15] shadow-[0_0_10px_rgba(0,229,255,0.8)]" aria-hidden="true">
+              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-cyan text-[11px] font-bold text-[#050a15] shadow-[0_0_10px_rgb(var(--accent-cyan-rgb)/0.8)]" aria-hidden="true">
                 1
               </span>
             )}

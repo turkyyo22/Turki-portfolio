@@ -22,27 +22,29 @@ export default function CoreBot({ size = 40, animated = true, floating = false, 
       width={size}
       height={size}
       aria-hidden="true"
-      className={`shrink-0 drop-shadow-[0_0_10px_rgba(0,229,255,0.45)] ${floating ? "bot-float" : ""} ${className}`}
+      className={`shrink-0 drop-shadow-[0_0_10px_rgb(var(--accent-cyan-rgb)/0.45)] ${floating ? "bot-float" : ""} ${className}`}
     >
+      {/* The accent parts use the site's accent variables (set in style, since SVG
+          attributes can't read CSS variables), so the robot follows the picked colour. */}
       <defs>
         <linearGradient id={shell} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#22324f" />
           <stop offset="1" stopColor="#0a1222" />
         </linearGradient>
         <linearGradient id={rim} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#00E5FF" />
-          <stop offset="1" stopColor="#3B82F6" />
+          <stop offset="0" style={{ stopColor: "var(--accent-cyan)" }} />
+          <stop offset="1" style={{ stopColor: "var(--accent-blue)" }} />
         </linearGradient>
         <radialGradient id={eye} cx="0.5" cy="0.35" r="0.75">
           <stop offset="0" stopColor="#F0FEFF" />
-          <stop offset="0.45" stopColor="#7DF9FF" />
-          <stop offset="1" stopColor="#00B8D9" />
+          <stop offset="0.45" style={{ stopColor: "var(--accent-glow)" }} />
+          <stop offset="1" style={{ stopColor: "var(--accent-deep)" }} />
         </radialGradient>
       </defs>
 
       {/* Antenna */}
       <line x1="32" y1="15" x2="32" y2="8.5" stroke={`url(#${rim})`} strokeWidth="2.6" strokeLinecap="round" />
-      <circle cx="32" cy="6.5" r="3.6" fill="#00E5FF" className={animated ? "bot-antenna" : ""} />
+      <circle cx="32" cy="6.5" r="3.6" style={{ fill: "var(--accent-cyan)" }} className={animated ? "bot-antenna" : ""} />
 
       {/* Ears */}
       <rect x="4" y="28" width="6" height="12" rx="3" fill={`url(#${rim})`} />
@@ -52,7 +54,7 @@ export default function CoreBot({ size = 40, animated = true, floating = false, 
       <rect x="9" y="15" width="46" height="38" rx="14" fill={`url(#${shell})`} stroke={`url(#${rim})`} strokeWidth="2.2" />
 
       {/* Visor */}
-      <rect x="15" y="23" width="34" height="21" rx="10.5" fill="#03070f" stroke="rgba(0,229,255,0.45)" strokeWidth="1.2" />
+      <rect x="15" y="23" width="34" height="21" rx="10.5" fill="#03070f" style={{ stroke: "rgb(var(--accent-cyan-rgb) / 0.45)" }} strokeWidth="1.2" />
       <path d="M19 27.5c2-2.3 5-3 9-3" stroke="rgba(255,255,255,0.18)" strokeWidth="1.6" strokeLinecap="round" fill="none" />
 
       {/* Eyes: the outer group looks around, the inner one blinks. */}

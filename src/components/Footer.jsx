@@ -25,7 +25,7 @@ export default function Footer({ dict, lang }) {
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2 group cursor-default">
             {/* النقطة النابضة */}
-            <span className="w-2 h-2 rounded-full bg-cyan animate-pulse shadow-[0_0_8px_#00e5ff]"></span>
+            <span className="w-2 h-2 rounded-full bg-cyan animate-pulse shadow-[0_0_8px_rgb(var(--accent-cyan-rgb))]"></span>
             <span className="text-cyan text-xs font-mono tracking-widest uppercase transition-colors group-hover:text-white">
               {dict.status}
             </span>

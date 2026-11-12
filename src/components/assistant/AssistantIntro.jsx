@@ -77,7 +77,7 @@ export default function AssistantIntro({ dict, textDirection = "ltr", onOpen, on
 
       <div
         dir={textDirection}
-        className="relative mb-6 w-[min(17rem,calc(100vw-8.5rem))] rounded-2xl rounded-bl-sm border border-cyan/30 bg-[#0b1220]/95 p-4 shadow-[0_0_30px_rgba(0,229,255,0.2)] backdrop-blur-xl"
+        className="relative mb-6 w-[min(17rem,calc(100vw-8.5rem))] rounded-2xl rounded-bl-sm border border-cyan/30 bg-[#0b1220]/95 p-4 shadow-[0_0_30px_rgb(var(--accent-cyan-rgb)/0.2)] backdrop-blur-xl"
       >
         <p className="sr-only" role="status">
           {fullText}

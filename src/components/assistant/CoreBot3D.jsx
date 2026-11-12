@@ -5,6 +5,7 @@ import {
   ACESFilmicToneMapping,
   AmbientLight,
   CapsuleGeometry,
+  Color,
   CylinderGeometry,
   DirectionalLight,
   Group,
@@ -19,6 +20,8 @@ import {
   WebGLRenderer,
 } from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+
+import { accentById, currentAccent, onAccentChange } from "@/lib/accent";
 
 const BLINK_EVERY_S = 3.6;
 const BLINK_LENGTH_S = 0.14;
@@ -46,9 +49,10 @@ function buildBot() {
     materials
   );
   const glass = track(new MeshPhysicalMaterial({ color: "#02050b", metalness: 0.3, roughness: 0.08, clearcoat: 1 }), materials);
-  const accent = track(new MeshStandardMaterial({ color: "#0b9fb5", metalness: 0.7, roughness: 0.3, emissive: "#00E5FF", emissiveIntensity: 0.35 }), materials);
-  const glow = track(new MeshBasicMaterial({ color: "#7DF9FF" }), materials);
-  const tipGlow = track(new MeshBasicMaterial({ color: "#00E5FF" }), materials);
+  // The accent-coloured parts. Their colours are set by paint() in CoreBot3D, from the picked accent.
+  const accent = track(new MeshStandardMaterial({ metalness: 0.7, roughness: 0.3, emissiveIntensity: 0.35 }), materials);
+  const glow = track(new MeshBasicMaterial(), materials);
+  const tipGlow = track(new MeshBasicMaterial(), materials);
 
   const bot = new Group();
   const head = new Mesh(track(new RoundedBoxGeometry(1.7, 1.42, 1.25, 6, 0.42), geometries), shell);
@@ -79,7 +83,7 @@ function buildBot() {
   tip.position.set(0, 1.07, 0);
 
   bot.add(head, visor, leftEye, rightEye, mouth, leftEar, rightEar, stem, tip);
-  return { bot, eyes: [leftEye, rightEye], mouth, tip, tipGlow, geometries, materials };
+  return { bot, eyes: [leftEye, rightEye], mouth, tip, metal: accent, glow, tipGlow, geometries, materials };
 }
 
 /**
@@ -116,22 +120,44 @@ export default function CoreBot3D({ size = 120, speaking = false, still = false,
     const camera = new PerspectiveCamera(30, 1, 0.1, 50);
     camera.position.set(0, 0.15, 6.4);
 
-    // Key light from the front, cyan rim lights behind so the head stands out from the dark page.
-    scene.add(new AmbientLight("#9fdcff", 1.1));
+    // Key light from the front, accent-coloured rim lights behind so the head stands
+    // out from the dark page. paint() below gives the coloured lights their colours.
+    const ambient = new AmbientLight(undefined, 1.1);
     const key = new DirectionalLight("#ffffff", 3);
     key.position.set(2, 3, 4);
-    const rimLeft = new PointLight("#00E5FF", 45, 0, 2);
+    const rimLeft = new PointLight(undefined, 45, 0, 2);
     rimLeft.position.set(-2.4, 1.8, -1.2);
-    const rimRight = new PointLight("#00E5FF", 35, 0, 2);
+    const rimRight = new PointLight(undefined, 35, 0, 2);
     rimRight.position.set(2.4, 1.6, -1.6);
-    const fill = new PointLight("#3B82F6", 30, 0, 2);
+    const fill = new PointLight(undefined, 30, 0, 2);
     fill.position.set(2.6, -1.4, 1.2);
-    const eyeLight = new PointLight("#00E5FF", 2.5, 3, 2);
+    const eyeLight = new PointLight(undefined, 2.5, 3, 2);
     eyeLight.position.set(0, 0.05, 1.3);
-    scene.add(key, rimLeft, rimRight, fill, eyeLight);
+    scene.add(ambient, key, rimLeft, rimRight, fill, eyeLight);
 
-    const { bot, eyes, mouth, tip, tipGlow, geometries, materials } = buildBot();
+    const { bot, eyes, mouth, tip, metal, glow, tipGlow, geometries, materials } = buildBot();
     scene.add(bot);
+
+    // Colours the lights and the accent parts with the site's accent colour, and
+    // again whenever the visitor picks another one.
+    const tipColor = new Color();
+    const white = new Color("#ffffff");
+    const paint = () => {
+      const colors = accentById(currentAccent());
+      ambient.color.set(colors.ambient);
+      for (const light of [rimLeft, rimRight, eyeLight]) light.color.set(colors.primary);
+      fill.color.set(colors.secondary);
+      metal.color.set(colors.metal);
+      metal.emissive.set(colors.primary);
+      glow.color.set(colors.glow);
+      tipColor.set(colors.primary);
+      tipGlow.color.copy(tipColor);
+    };
+    paint();
+    const stopRepainting = onAccentChange(() => {
+      paint();
+      if (still) renderer.render(scene, camera);
+    });
 
     // Resting pose: turned slightly toward the speech bubble on its right.
     const base = { x: -0.06, y: 0.32 };
@@ -173,7 +199,8 @@ export default function CoreBot3D({ size = 120, speaking = false, still = false,
 
       const pulse = 0.5 + 0.5 * Math.sin(time * (3 + talk * 6));
       tip.scale.setScalar(1 + pulse * 0.25);
-      tipGlow.color.setRGB(0.3 * pulse, 0.9, 1);
+      // The antenna tip pulses between the accent and a lighter shade of it.
+      tipGlow.color.copy(tipColor).lerp(white, 0.3 * pulse);
 
       renderer.render(scene, camera);
       frame = requestAnimationFrame(renderFrame);
@@ -196,6 +223,7 @@ export default function CoreBot3D({ size = 120, speaking = false, still = false,
 
     return () => {
       cancelAnimationFrame(frame);
+      stopRepainting();
       window.removeEventListener("pointermove", onPointerMove);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       for (const geometry of geometries) geometry.dispose();
