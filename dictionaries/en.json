@@ -16,7 +16,14 @@
     "askAi": "Ask AI",
     "askAboutProject": "Ask AI about {name}",
     "emptyProjects": "No projects published yet.",
-    "switchLanguage": "Switch to Arabic"
+    "switchLanguage": "Switch to Arabic",
+    "accent": {
+      "label": "Site colour",
+      "cyan": "Cyan",
+      "purple": "Purple",
+      "mint": "Mint",
+      "amber": "Amber"
+    }
   },
   "hero": {
     "eyebrow": "System Initialized",

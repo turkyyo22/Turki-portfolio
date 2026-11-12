@@ -38,16 +38,17 @@ export default function ScrollToTop({ label }) {
           aria-label={label}
           onMouseDown={(event) => event.preventDefault()}
           onClick={scrollToTop}
+          // The hover glow is in the class below: its colour comes from a CSS variable
+          // (the picked accent), which framer-motion can't animate.
           whileHover={{
             scale: 1.1,
-            boxShadow: "0px 0px 20px rgba(0, 229, 255, 0.5)",
             transition: { duration: 0.15 }
           }}
           whileTap={{ scale: 0.9 }}
           // تم وضع الزر في أسفل اليمين ليكون مناسباً ولا يغطي المحتوى
           // z-40 keeps it under the chat (z-50), which fills the whole screen on phones
           // and has its send button in this same corner, and under open dialogs.
-          className="fixed bottom-4 right-4 z-40 p-2.5 sm:bottom-8 sm:right-8 sm:p-3 bg-glass border border-cyan/50 text-cyan rounded-full backdrop-blur-md transition-colors duration-200 hover:bg-cyan hover:text-black transform-gpu backface-hidden antialiased flex items-center justify-center"
+          className="fixed bottom-4 right-4 z-40 p-2.5 sm:bottom-8 sm:right-8 sm:p-3 bg-glass border border-cyan/50 text-cyan rounded-full backdrop-blur-md transition-[color,background-color,box-shadow] duration-200 hover:bg-cyan hover:text-black hover:shadow-[0_0_20px_rgb(var(--accent-cyan-rgb)/0.5)] transform-gpu backface-hidden antialiased flex items-center justify-center"
         >
           {/* أيقونة سهم للأعلى */}
           <svg

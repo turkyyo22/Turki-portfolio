@@ -4,12 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import AccentPicker from "@/components/AccentPicker";
 import { askAssistant } from "@/lib/assistant/events";
 import { format } from "@/lib/i18n";
 import { clearHash, scrollToId, scrollToY } from "@/lib/smoothScroll";
 
 const itemClass =
-  "shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold tracking-wider uppercase text-white/80 px-2 sm:px-3 py-1.5 rounded-lg transition-all duration-200 hover:text-cyan hover:bg-cyan/15 hover:shadow-[0_0_16px_rgba(0,229,255,0.35)] active:scale-95";
+  "shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold tracking-wider uppercase text-white/80 px-2 sm:px-3 py-1.5 rounded-lg transition-all duration-200 hover:text-cyan hover:bg-cyan/15 hover:shadow-[0_0_16px_rgb(var(--accent-cyan-rgb)/0.35)] active:scale-95";
 
 export default function SiteNav({ lang, dict, projects, publishedSlugs, askQuestionTemplate }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -74,12 +75,12 @@ export default function SiteNav({ lang, dict, projects, publishedSlugs, askQuest
 
   return (
     <nav aria-label="Main" className="fixed top-0 inset-x-0 z-40 px-3 sm:px-6 pt-3">
-      <div className="max-w-7xl mx-auto flex min-w-0 items-center gap-2 sm:gap-3 rounded-2xl border border-white/10 bg-[#050A15]/75 backdrop-blur-xl px-2 sm:px-4 py-2.5 shadow-[0_0_30px_rgba(0,229,255,0.08)]">
+      <div className="max-w-7xl mx-auto flex min-w-0 items-center gap-2 sm:gap-3 rounded-2xl border border-white/10 bg-[#050A15]/75 backdrop-blur-xl px-2 sm:px-4 py-2.5 shadow-[0_0_30px_rgb(var(--accent-cyan-rgb)/0.08)]">
         <button
           type="button"
           onClick={onLogoClick}
           aria-label={dict.home}
-          className="shrink-0 touch-manipulation select-none font-bold text-lg tracking-wider text-white transition-all duration-200 hover:text-cyan hover:drop-shadow-[0_0_8px_rgba(0,229,255,0.6)] active:scale-90"
+          className="shrink-0 touch-manipulation select-none font-bold text-lg tracking-wider text-white transition-all duration-200 hover:text-cyan hover:drop-shadow-[0_0_8px_rgb(var(--accent-cyan-rgb)/0.6)] active:scale-90"
         >
           T.A
         </button>
@@ -97,7 +98,7 @@ export default function SiteNav({ lang, dict, projects, publishedSlugs, askQuest
               aria-expanded={isOpen}
               aria-controls="projects-menu"
               onClick={() => setIsOpen((open) => !open)}
-              className={`${itemClass} inline-flex items-center gap-1.5 ${isOpen ? "text-cyan bg-cyan/15 shadow-[0_0_16px_rgba(0,229,255,0.35)]" : ""}`}
+              className={`${itemClass} inline-flex items-center gap-1.5 ${isOpen ? "text-cyan bg-cyan/15 shadow-[0_0_16px_rgb(var(--accent-cyan-rgb)/0.35)]" : ""}`}
             >
               {dict.projects}
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} aria-hidden="true">
@@ -112,7 +113,7 @@ export default function SiteNav({ lang, dict, projects, publishedSlugs, askQuest
           {isOpen && (
             <div
               id="projects-menu"
-              className="absolute top-full z-50 mt-3 w-80 max-w-[calc(100vw-1.5rem)] start-0 rounded-xl border border-cyan/20 bg-[#050A15]/95 backdrop-blur-xl p-3 shadow-[0_0_24px_rgba(0,229,255,0.18)]"
+              className="absolute top-full z-50 mt-3 w-80 max-w-[calc(100vw-1.5rem)] start-0 rounded-xl border border-cyan/20 bg-[#050A15]/95 backdrop-blur-xl p-3 shadow-[0_0_24px_rgb(var(--accent-cyan-rgb)/0.18)]"
             >
               {projects.length === 0 ? (
                 <p className="text-white/60 text-xs font-mono text-center py-4">{dict.emptyProjects}</p>
@@ -163,12 +164,14 @@ export default function SiteNav({ lang, dict, projects, publishedSlugs, askQuest
           )}
         </div>
 
+        <AccentPicker dict={dict.accent} />
+
         <Link
           href={`/${otherLang}`}
           hrefLang={otherLang}
           lang={otherLang}
           title={dict.switchLanguage}
-          className="shrink-0 whitespace-nowrap text-cyan text-xs sm:text-sm font-mono border border-cyan/50 px-2 sm:px-3 py-1.5 rounded-lg bg-glass backdrop-blur-md transition-all duration-200 hover:bg-cyan/15 hover:shadow-[0_0_16px_rgba(0,229,255,0.35)]"
+          className="shrink-0 whitespace-nowrap text-cyan text-xs sm:text-sm font-mono border border-cyan/50 px-2 sm:px-3 py-1.5 rounded-lg bg-glass backdrop-blur-md transition-all duration-200 hover:bg-cyan/15 hover:shadow-[0_0_16px_rgb(var(--accent-cyan-rgb)/0.35)]"
         >
           {toggleText}
         </Link>

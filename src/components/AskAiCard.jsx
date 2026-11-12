@@ -95,8 +95,8 @@ export default function AskAiCard({ dict, lang }) {
   const smoothY = useSpring(lightY, LIGHT_SPRING);
   const rimOpacity = useSpring(near, LIGHT_SPRING);
   const sheenOpacity = useSpring(useTransform([near, over], ([nearness, isOver]) => Math.max(isOver, nearness * 0.4)), LIGHT_SPRING);
-  const rim = useMotionTemplate`radial-gradient(260px circle at ${smoothX}px ${smoothY}px, rgba(0, 229, 255, 0.95), rgba(59, 130, 246, 0.5) 35%, transparent 70%)`;
-  const sheen = useMotionTemplate`radial-gradient(420px circle at ${smoothX}px ${smoothY}px, rgba(0, 229, 255, 0.16), transparent 62%)`;
+  const rim = useMotionTemplate`radial-gradient(260px circle at ${smoothX}px ${smoothY}px, rgb(var(--accent-cyan-rgb) / 0.95), rgb(var(--accent-blue-rgb) / 0.5) 35%, transparent 70%)`;
+  const sheen = useMotionTemplate`radial-gradient(420px circle at ${smoothX}px ${smoothY}px, rgb(var(--accent-cyan-rgb) / 0.16), transparent 62%)`;
 
   const botLookX = useSpring(eyeX, LIGHT_SPRING);
   const botLookY = useSpring(eyeY, LIGHT_SPRING);
@@ -212,7 +212,7 @@ export default function AskAiCard({ dict, lang }) {
       <div ref={frameRef} className="w-full" style={{ perspective: 1100 }}>
         <motion.div style={{ rotateX, rotateY, z: lift, transformStyle: "preserve-3d" }} className="relative w-full rounded-2xl">
           {/* Glass and lights are separate layers: a backdrop blur on the 3D container would flatten it. */}
-          <div className="absolute inset-0 rounded-2xl border border-cyan/20 bg-glass shadow-[0_40px_80px_-30px_rgba(0,0,0,0.85),0_0_40px_rgba(0,229,255,0.08)] backdrop-blur-xl" />
+          <div className="absolute inset-0 rounded-2xl border border-cyan/20 bg-glass shadow-[0_40px_80px_-30px_rgba(0,0,0,0.85),0_0_40px_rgb(var(--accent-cyan-rgb)/0.08)] backdrop-blur-xl" />
           <motion.div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-2xl" style={{ background: sheen, opacity: sheenOpacity }} />
           {/* The rim lights up on the side nearest the cursor, even before the cursor reaches the card. */}
           <motion.div
@@ -256,7 +256,7 @@ export default function AskAiCard({ dict, lang }) {
               <button
                 type="submit"
                 disabled={!question.trim()}
-                className="shrink-0 rounded-xl bg-gradient-to-br from-cyan to-blue px-5 text-sm font-bold text-[#050a15] shadow-[0_8px_20px_-6px_rgba(0,229,255,0.6)] transition-all hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                className="shrink-0 rounded-xl bg-gradient-to-br from-cyan to-blue px-5 text-sm font-bold text-[#050a15] shadow-[0_8px_20px_-6px_rgb(var(--accent-cyan-rgb)/0.6)] transition-all hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {dict.send}
               </button>

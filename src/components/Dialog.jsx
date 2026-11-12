@@ -37,7 +37,7 @@ export default function Dialog({ open, onClose, label, labelledBy, className = "
         // A click on the backdrop lands on the <dialog> element itself.
         if (event.target === ref.current) onClose();
       }}
-      className={`max-h-[90vh] w-[min(56rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-cyan/20 bg-[#070d1a] p-0 text-white shadow-[0_0_60px_rgba(0,229,255,0.15)] backdrop:bg-black/80 backdrop:backdrop-blur-sm ${className}`}
+      className={`max-h-[90vh] w-[min(56rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-cyan/20 bg-[#070d1a] p-0 text-white shadow-[0_0_60px_rgb(var(--accent-cyan-rgb)/0.15)] backdrop:bg-black/80 backdrop:backdrop-blur-sm ${className}`}
     >
       {open && children}
     </dialog>

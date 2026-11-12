@@ -34,7 +34,7 @@ export default function Hero({ dict, lang, cvAvailable }) {
         transition={{ duration: 0.7, ease: "easeOut" }}
         className="space-y-6"
       >
-        <p className="text-cyan tracking-widest uppercase text-sm font-semibold drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]">
+        <p className="text-cyan tracking-widest uppercase text-sm font-semibold drop-shadow-[0_0_8px_rgb(var(--accent-cyan-rgb)/0.8)]">
           {dict.eyebrow}
         </p>
         <h1 className="text-6xl md:text-7xl font-bold text-white tracking-tight">
@@ -44,10 +44,10 @@ export default function Hero({ dict, lang, cvAvailable }) {
         <p className="text-lg md:text-xl font-semibold text-white/90">{dict.role}</p>
         <p className="max-w-xl text-muted text-base md:text-lg leading-relaxed">{dict.description}</p>
 
-        <p className="inline-flex items-center gap-2.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-1.5 text-sm font-medium text-emerald-300">
+        <p className="inline-flex items-center gap-2.5 rounded-full border border-green-400/30 bg-green-400/10 px-4 py-1.5 text-sm font-medium text-green-300">
           <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-70" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-green-400" />
           </span>
           {dict.status}
         </p>
@@ -68,7 +68,7 @@ export default function Hero({ dict, lang, cvAvailable }) {
           <button
             type="button"
             onClick={openAssistant}
-            className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-cyan to-blue px-6 py-3 text-sm font-bold text-[#050a15] shadow-[0_0_24px_rgba(0,229,255,0.35)] transition-all hover:brightness-110 hover:shadow-[0_0_32px_rgba(0,229,255,0.55)] active:scale-95"
+            className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-cyan to-blue px-6 py-3 text-sm font-bold text-[#050a15] shadow-[0_0_24px_rgb(var(--accent-cyan-rgb)/0.35)] transition-all hover:brightness-110 hover:shadow-[0_0_32px_rgb(var(--accent-cyan-rgb)/0.55)] active:scale-95"
           >
             <span aria-hidden="true">✦</span>
             {dict.ctaAsk}

@@ -2,6 +2,7 @@ import { Tajawal } from "next/font/google";
 
 import MotionProvider from "@/components/MotionProvider";
 import { getDictionary } from "@/get-dictionary";
+import { applySavedAccentScript } from "@/lib/accent";
 import { LOCALES, directionOf } from "@/lib/i18n";
 import { SITE_URL } from "@/lib/site";
 import "../globals.css";
@@ -60,10 +61,14 @@ export default async function RootLayout({ children, params }) {
   const { lang } = await params;
   const bodyFont = lang === "ar" ? `${arabic.className} antialiased` : "antialiased";
 
+  // The head script also applies the accent colour the visitor picked on an earlier
+  // visit (a data-accent attribute on <html>), before anything is painted.
+  // suppressHydrationWarning lets React keep that attribute, which the server
+  // can't know about, instead of treating it as a mismatch.
   return (
-    <html lang={lang} dir={directionOf(lang)}>
+    <html lang={lang} dir={directionOf(lang)} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: resetScrollOnReload }} />
+        <script dangerouslySetInnerHTML={{ __html: resetScrollOnReload + applySavedAccentScript }} />
       </head>
       <body className={bodyFont}>
         <MotionProvider>{children}</MotionProvider>

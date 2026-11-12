@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-// Same light as the original design: a 350px cyan glow that fades out at 80%.
+// Same light as the original design: a 350px glow in the accent colour that fades out at 80%.
 const RADIUS = 350;
 
 /**
@@ -54,7 +54,7 @@ export default function MouseSpotlight() {
         style={{
           width: RADIUS * 2,
           height: RADIUS * 2,
-          background: "radial-gradient(circle closest-side, rgba(34, 211, 238, 0.03), transparent 80%)",
+          background: "radial-gradient(circle closest-side, rgb(var(--accent-cyan-rgb) / 0.03), transparent 80%)",
         }}
       />
     </div>

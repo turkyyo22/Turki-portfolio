@@ -460,7 +460,7 @@ export default function AdminDashboard() {
           </h2>
           <div className="flex flex-col gap-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
             {messages.length === 0 ? <p className="text-muted text-center font-mono py-6">No messages received yet.</p> : messages.map((msg) => (
-              <div key={msg.id} className={`p-4 rounded-xl border transition-all ${msg.isRead ? 'bg-white/5 border-white/10 opacity-70' : 'bg-cyan/10 border-cyan/50 shadow-[0_0_15px_rgba(34,211,238,0.1)]'}`}>
+              <div key={msg.id} className={`p-4 rounded-xl border transition-all ${msg.isRead ? 'bg-white/5 border-white/10 opacity-70' : 'bg-cyan/10 border-cyan/50 shadow-[0_0_15px_rgb(var(--accent-cyan-rgb)/0.1)]'}`}>
                 <div className="flex justify-between items-start mb-2">
                   <div>
                     <h4 className="font-bold text-lg text-white">{msg.name}</h4>

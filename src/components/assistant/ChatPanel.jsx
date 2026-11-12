@@ -57,7 +57,7 @@ export default function ChatPanel({ lang, dict, messages, isLoading, suggestions
       exit={{ opacity: 0, y: 24, scale: 0.96 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
       style={{ transformOrigin: "bottom left" }}
-      className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-gradient-to-b from-[#0b1220] to-[#050a15] sm:inset-auto sm:bottom-6 sm:left-6 sm:h-[min(600px,calc(100dvh-3rem))] sm:w-[390px] sm:rounded-2xl sm:border sm:border-cyan/25 sm:from-[#0b1220]/95 sm:to-[#050a15]/95 sm:shadow-[0_0_30px_rgba(34,211,238,0.15)] sm:backdrop-blur-xl"
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-gradient-to-b from-[#0b1220] to-[#050a15] sm:inset-auto sm:bottom-6 sm:left-6 sm:h-[min(600px,calc(100dvh-3rem))] sm:w-[390px] sm:rounded-2xl sm:border sm:border-cyan/25 sm:from-[#0b1220]/95 sm:to-[#050a15]/95 sm:shadow-[0_0_30px_rgb(var(--accent-cyan-rgb)/0.15)] sm:backdrop-blur-xl"
     >
       <header className="relative flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-cyan/15 via-blue/10 to-transparent p-4">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan/60 to-transparent" />
@@ -124,7 +124,7 @@ export default function ChatPanel({ lang, dict, messages, isLoading, suggestions
           type="submit"
           disabled={!text.trim() || isLoading}
           aria-label={dict.send}
-          className="flex w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan to-blue text-[#050a15] shadow-[0_0_14px_rgba(0,229,255,0.3)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+          className="flex w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan to-blue text-[#050a15] shadow-[0_0_14px_rgb(var(--accent-cyan-rgb)/0.3)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
         >
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-5 w-5 rtl:-scale-x-100" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
