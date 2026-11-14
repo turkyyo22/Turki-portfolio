@@ -211,6 +211,51 @@ body {
   box-shadow: 0 0 6px 1px rgb(var(--accent-cyan-rgb) / 0.5);
 }
 
+/* Explore mode (the 3D city). The page is this tall so that scrolling it flies
+   the camera down the street: one stretch per stop. "lvh" keeps the height steady
+   on phones, where the address bar slides in and out; "vh" is the fallback. */
+.explore-track {
+  height: calc(var(--legs, 8) * 140vh);
+  height: calc(var(--legs, 8) * 140lvh);
+}
+
+html:has(.explore-track) {
+  scrollbar-width: none;
+}
+
+html:has(.explore-track)::-webkit-scrollbar {
+  display: none;
+}
+
+/* The Exit button's border: a ring of the accent colours, turning slowly. */
+@keyframes explore-ring {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.explore-exit-ring {
+  background: conic-gradient(from 0deg, var(--accent-cyan), transparent 28%, var(--accent-blue) 50%, transparent 78%, var(--accent-cyan));
+  animation: explore-ring 5s linear infinite;
+}
+
+/* The scroll hint at the start of the tour: a dot sliding down inside a mouse outline. */
+@keyframes explore-wheel {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  70%,
+  100% {
+    transform: translateY(9px);
+    opacity: 0;
+  }
+}
+
+.explore-wheel {
+  animation: explore-wheel 1.6s ease-in-out infinite;
+}
+
 /* Honour the visitor's "reduce motion" setting for CSS animations too */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -226,6 +271,12 @@ body {
   .loader-spin,
   .loader-pulse {
     animation-duration: 1.4s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  /* The Exit button's ring is small, so it keeps turning, only slower. */
+  .explore-exit-ring {
+    animation-duration: 10s !important;
     animation-iteration-count: infinite !important;
   }
 }

@@ -13,6 +13,7 @@
     "coop": "Co-op",
     "projects": "Projects",
     "contact": "Contact",
+    "explore": "3D City",
     "askAi": "Ask AI",
     "askAboutProject": "Ask AI about {name}",
     "emptyProjects": "No projects published yet.",
@@ -50,6 +51,8 @@
     "ctaProjects": "View projects",
     "ctaCv": "Download CV",
     "ctaContact": "Contact me",
+    "ctaExplore": "Explore in 3D",
+    "exploreBadge": "New",
     "aiCard": {
       "eyebrow": "T.A Core · Online",
       "title": "Ask my AI assistant",
@@ -158,6 +161,98 @@
       "empty_response": "I couldn't generate an answer. Please try again.",
       "message_too_long": "That message is too long. Please shorten it.",
       "default": "Something went wrong. Please try again."
+    }
+  },
+  "explore": {
+    "meta": {
+      "title": "Explore the city | Turki Aloufi",
+      "description": "Fly through a neon city built from Turki Aloufi's projects, from his first programs to his graduation project and co-op training."
+    },
+    "heading": "Explore mode: fly through Turki Aloufi's projects",
+    "exit": "Exit",
+    "exitLong": "Exit to the classic site",
+    "loading": {
+      "title": "Building the city…",
+      "skip": "Skip to the classic site"
+    },
+    "hint": {
+      "scroll": "Scroll down to fly forward",
+      "swipe": "Swipe up to fly forward"
+    },
+    "districts": {
+      "start": "City Gate",
+      "old": "Old Town",
+      "mid": "Midtown",
+      "neon": "Neon District",
+      "graduation": "Graduation Square",
+      "business": "Business Bay",
+      "frontier": "The Frontier"
+    },
+    "guide": {
+      "name": "T.A Core",
+      "intro": "Hi! I'm T.A Core. Scroll down and I'll fly you through Turki's journey.",
+      "next": "Next stop: {title}",
+      "toFinale": "One more stop: the edge of the city.",
+      "first": "We start in the old town, with one of his first projects.",
+      "project": [
+        "Every project adds a building to the city.",
+        "Bigger project, taller building.",
+        "The street gets brighter from here."
+      ],
+      "inProgress": "This one is still under construction: {progress}% built.",
+      "graduation": "Graduation Square! This is the project he graduated with.",
+      "coop": "And the tallest tower in the city: his co-op training.",
+      "finale": "That's the tour! The next building could be the one you build together."
+    },
+    "card": {
+      "stop": "Stop {number} of {total}",
+      "inProgress": "Under construction · {progress}%",
+      "open": "Open in portfolio",
+      "previous": "Previous stop",
+      "next": "Next stop",
+      "github": "GitHub",
+      "live": "Live demo"
+    },
+    "finale": {
+      "eyebrow": "The Frontier",
+      "title": "The city is still growing",
+      "text": "That's my journey so far. The next building could be the one we make together.",
+      "upcoming": "Under construction",
+      "contact": "Contact me",
+      "classic": "Back to the portfolio",
+      "replay": "Fly again"
+    },
+    "sign": {
+      "inProgress": "UNDER CONSTRUCTION",
+      "finale": [
+        "YOUR PROJECT",
+        "HERE?"
+      ]
+    },
+    "gate": {
+      "title": "Explore mode works best on a computer",
+      "text": "It's a 3D world, so on this phone it may run slower and use more battery.",
+      "lite": "Try the lite version",
+      "share": "Send me the link",
+      "shareTitle": "Turki Aloufi's 3D city",
+      "copied": "Link copied",
+      "back": "Back to the portfolio",
+      "remember": "Don't show this again"
+    },
+    "unsupported": {
+      "title": "This device can't show the 3D city",
+      "text": "Your browser doesn't support 3D graphics. The classic portfolio has everything.",
+      "back": "Back to the portfolio"
+    },
+    "slow": {
+      "text": "Running slow on this device?",
+      "action": "Switch to classic",
+      "dismiss": "Keep going"
+    },
+    "a11y": {
+      "timeline": "Tour stops",
+      "goTo": "Go to {title}",
+      "end": "Go to the end of the street"
     }
   },
   "footer": {

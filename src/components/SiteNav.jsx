@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import AccentPicker from "@/components/AccentPicker";
 import { askAssistant } from "@/lib/assistant/events";
 import { format } from "@/lib/i18n";
-import { clearHash, scrollToId, scrollToY } from "@/lib/smoothScroll";
+import { clearHash, holdHashTarget, scrollToId, scrollToY } from "@/lib/smoothScroll";
 
 const itemClass =
   "shrink-0 whitespace-nowrap text-xs sm:text-sm font-bold tracking-wider uppercase text-white/80 px-2 sm:px-3 py-1.5 rounded-lg transition-all duration-200 hover:text-cyan hover:bg-cyan/15 hover:shadow-[0_0_16px_rgb(var(--accent-cyan-rgb)/0.35)] active:scale-95";
@@ -35,14 +35,20 @@ export default function SiteNav({ lang, dict, projects, publishedSlugs, askQuest
   const otherLang = lang === "en" ? "ar" : "en";
   const toggleText = lang === "en" ? "عربي" : "English";
 
-  // Old shared links may still carry a #hash; drop it once the page settles.
+  // A link can open the page at a #hash: a project opened from Explore mode, or
+  // an old shared link. Keep that target in view while the page finishes
+  // loading, then drop the hash from the address.
   useEffect(() => {
+    const release = holdHashTarget();
     const started = performance.now();
     const clearId = window.setInterval(() => {
       clearHash();
       if (!window.location.hash || performance.now() - started > 5000) window.clearInterval(clearId);
     }, 300);
-    return () => window.clearInterval(clearId);
+    return () => {
+      release();
+      window.clearInterval(clearId);
+    };
   }, []);
 
   useEffect(() => {
@@ -108,6 +114,9 @@ export default function SiteNav({ lang, dict, projects, publishedSlugs, askQuest
             <button type="button" onClick={() => goTo("contact")} className={`${itemClass} hidden sm:inline-flex`}>
               {dict.contact}
             </button>
+            <Link href={`/${lang}/explore`} className={`${itemClass} text-cyan`}>
+              {dict.explore}
+            </Link>
           </div>
 
           {isOpen && (
