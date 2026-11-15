@@ -1,6 +1,9 @@
 import {
   AdditiveBlending,
   BackSide,
+  Color,
+  DoubleSide,
+  RingGeometry,
   BufferAttribute,
   BufferGeometry,
   CylinderGeometry,
@@ -24,8 +27,10 @@ const SKYLINE_HEIGHT = 150;
 
 /**
  * Everything above and around the city: the night sky with its glow over the
- * horizon, twinkling stars, a crescent moon, the odd shooting star, and a ring
- * of far towers. All of it travels with the camera, so it never gets closer.
+ * horizon, neon clouds lit from below, a faint aurora, twinkling stars, a
+ * crescent moon and a smaller second one, a ringed planet low over the far end
+ * of the street, the odd shooting star, and a ring of far towers. All of it
+ * travels with the camera, so it never gets closer.
  */
 export function createSky({ scene, shared, palette, random, settings }) {
   // --- The dome ---
@@ -41,6 +46,7 @@ export function createSky({ scene, shared, palette, random, settings }) {
         uHorizon: { value: palette.horizon },
         uGlowA: { value: palette.glowViolet },
         uGlowB: { value: palette.glowMagenta },
+        uRim: { value: palette.accent },
         uFogLow: shared.uFogLow,
       },
       vertexShader: /* glsl */ `
@@ -56,6 +62,7 @@ export function createSky({ scene, shared, palette, random, settings }) {
         uniform vec3 uHorizon;
         uniform vec3 uGlowA;
         uniform vec3 uGlowB;
+        uniform vec3 uRim;
         uniform vec3 uFogLow;
         varying vec3 vDir;
         ${NOISE}
@@ -81,10 +88,21 @@ export function createSky({ scene, shared, palette, random, settings }) {
           color += uGlowA * exp(-h * 7.0) * (0.25 + 0.75 * ahead * ahead);
           color += uGlowB * exp(-h * 15.0) * (0.3 + 0.7 * ahead);
 
-          // Thin clouds, lit from below by the city.
+          // A faint aurora: slow curtains of light high over the far end of the city.
+          float band = smoothstep(0.18, 0.32, h) * (1.0 - smoothstep(0.42, 0.62, h)) * smoothstep(0.1, 0.8, ahead);
+          float curtain = 0.5 + 0.5 * sin(dir.x * 26.0 + sin(dir.x * 7.0 + uTime * 0.05) * 3.0 + uTime * 0.12);
+          float sheet = pow(curtain, 3.0) * (0.55 + 0.45 * noise21(vec2(dir.x * 14.0, uTime * 0.03)));
+          color += mix(vec3(0.05, 0.42, 0.32), vec3(0.32, 0.1, 0.52), smoothstep(0.25, 0.55, h)) * band * sheet * 0.22;
+
+          // Neon clouds: dark bodies whose undersides catch the glow of the city, with a rim of the accent colour.
           vec2 cloudUv = dir.xz / (h + 0.12) * 0.55 + vec2(uTime * 0.004, 0.0);
-          float cloud = smoothstep(0.5, 0.85, clouds(cloudUv)) * smoothstep(0.02, 0.2, h) * (1.0 - smoothstep(0.45, 0.9, h));
-          color += (uGlowA * 0.5 + uGlowB * 0.25) * cloud * (0.3 + 0.7 * ahead) * 0.6;
+          float density = clouds(cloudUv);
+          float cloud = smoothstep(0.48, 0.82, density) * smoothstep(0.02, 0.18, h) * (1.0 - smoothstep(0.42, 0.85, h));
+          float edge = smoothstep(0.42, 0.55, density) - smoothstep(0.55, 0.7, density);
+          float lowness = 1.0 - smoothstep(0.02, 0.35, h);
+          vec3 under = mix(uGlowA * 0.9, uGlowB * 1.4, lowness);
+          color = mix(color, color * 0.55 + under * 0.5, cloud * 0.85);
+          color += uRim * edge * smoothstep(0.02, 0.2, h) * (1.0 - smoothstep(0.4, 0.8, h)) * (0.3 + 0.7 * ahead) * 0.12;
 
           // Below the horizon the sky meets the haze over the ground.
           color = mix(color, uFogLow, smoothstep(0.0, -0.05, dir.y));
@@ -222,6 +240,101 @@ export function createSky({ scene, shared, palette, random, settings }) {
   skyline.frustumCulled = false;
   scene.add(skyline);
 
+  // --- A ringed planet low over the far end of the street, lit from the side of the moon ---
+  const planetDirection = new Vector3(0.32, 0.2, -1).normalize();
+  const planetDistance = 760;
+  const planet = new Mesh(
+    new SphereGeometry(62, 48, 24),
+    new ShaderMaterial({
+      depthWrite: false,
+      uniforms: { uLight: { value: new Vector3(-0.6, 0.45, 0.65).normalize() }, uA: { value: new Color("#3b2a6e") }, uB: { value: new Color("#b0567a") }, uC: { value: new Color("#2e8a8a") } },
+      vertexShader: /* glsl */ `
+        varying vec3 vNormal;
+        varying vec3 vLocal;
+        void main() {
+          vNormal = normalize(mat3(modelMatrix) * normal);
+          vLocal = position;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform vec3 uLight;
+        uniform vec3 uA;
+        uniform vec3 uB;
+        uniform vec3 uC;
+        varying vec3 vNormal;
+        varying vec3 vLocal;
+        ${NOISE}
+        void main() {
+          float latitude = vLocal.y / 62.0;
+          float bands = sin(latitude * 18.0 + noise21(vec2(latitude * 30.0, vLocal.x * 0.05)) * 2.5);
+          vec3 albedo = mix(uA, uB, 0.5 + 0.5 * bands);
+          albedo = mix(albedo, uC, smoothstep(0.55, 0.9, noise21(vec2(vLocal.x * 0.04, latitude * 9.0))));
+          vec3 n = normalize(vNormal);
+          float light = smoothstep(-0.15, 0.6, dot(n, uLight));
+          vec3 color = albedo * (0.04 + 0.62 * light);
+          // A thin bright atmosphere round the lit edge.
+          float rim = pow(1.0 - abs(n.z), 3.0) * light;
+          color += uB * rim * 0.35;
+          gl_FragColor = vec4(color, 1.0);
+          ${OUTPUT}
+        }
+      `,
+    })
+  );
+  planet.renderOrder = -7;
+  scene.add(planet);
+  const ring = new Mesh(
+    new RingGeometry(80, 128, 96, 1),
+    new ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: DoubleSide,
+      blending: AdditiveBlending,
+      uniforms: { uColor: { value: new Color("#c98fb8") } },
+      vertexShader: /* glsl */ `
+        varying vec2 vPosition;
+        void main() {
+          vPosition = position.xy;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform vec3 uColor;
+        varying vec2 vPosition;
+        void main() {
+          float r = (length(vPosition) - 80.0) / 48.0;
+          float bands = 0.55 + 0.45 * sin(r * 40.0) * sin(r * 13.0 + 1.0);
+          float fade = smoothstep(0.0, 0.08, r) * (1.0 - smoothstep(0.85, 1.0, r));
+          gl_FragColor = vec4(uColor * bands * fade * 0.22, 1.0);
+          ${OUTPUT}
+        }
+      `,
+    })
+  );
+  ring.rotation.set(-1.25, 0.35, 0.25);
+  ring.renderOrder = -7;
+  scene.add(ring);
+
+  // --- A small second moon, pale blue ---
+  const [moonletCanvas, moonletCtx] = makeCanvas(128, 128);
+  moonletCtx.fillStyle = "#000";
+  moonletCtx.fillRect(0, 0, 128, 128);
+  const moonletGlow = moonletCtx.createRadialGradient(64, 64, 10, 64, 64, 62);
+  moonletGlow.addColorStop(0, "rgba(170, 220, 255, 0.9)");
+  moonletGlow.addColorStop(0.32, "rgba(150, 200, 255, 0.85)");
+  moonletGlow.addColorStop(0.36, "rgba(120, 170, 255, 0.12)");
+  moonletGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
+  moonletCtx.fillStyle = moonletGlow;
+  moonletCtx.fillRect(0, 0, 128, 128);
+  const moonlet = new Mesh(
+    new PlaneGeometry(30, 30),
+    new MeshBasicMaterial({ map: canvasTexture(moonletCanvas), blending: AdditiveBlending, transparent: true, depthWrite: false, fog: false })
+  );
+  moonlet.renderOrder = -7;
+  const moonletDirection = new Vector3(0.55, 0.5, -0.67).normalize();
+  scene.add(moonlet);
+
   // --- Shooting stars: rare, quick and faint ---
   const streakMaterial = new ShaderMaterial({
     blending: AdditiveBlending,
@@ -296,6 +409,11 @@ export function createSky({ scene, shared, palette, random, settings }) {
       stars.position.copy(camera.position);
       moon.position.copy(camera.position).addScaledVector(moonDirection, STAR_DISTANCE - 60);
       moon.quaternion.copy(camera.quaternion);
+      moonlet.position.copy(camera.position).addScaledVector(moonletDirection, STAR_DISTANCE - 80);
+      moonlet.quaternion.copy(camera.quaternion);
+      planet.position.copy(camera.position).addScaledVector(planetDirection, planetDistance);
+      planet.rotation.y = time * 0.004;
+      ring.position.copy(planet.position);
       skyline.position.set(camera.position.x, SKYLINE_HEIGHT / 2 - 8, camera.position.z);
       updateStreak(time, camera);
     },

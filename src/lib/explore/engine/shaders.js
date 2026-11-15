@@ -41,6 +41,35 @@ float noise21(vec2 p) {
 float lineAA(float distance, float halfWidth, float pixel) {
   return (1.0 - smoothstep(halfWidth, halfWidth + pixel, distance)) * (2.0 * halfWidth) / (2.0 * halfWidth + pixel);
 }
+
+// 1 inside the box [lo, hi] (per axis), with soft edges as wide as 'pixel'.
+float boxMask(vec2 p, vec2 lo, vec2 hi, vec2 pixel) {
+  vec2 inside = smoothstep(lo - pixel, lo + pixel, p) * (1.0 - smoothstep(hi - pixel, hi + pixel, p));
+  return inside.x * inside.y;
+}
+`;
+
+/**
+ * Night lighting for surfaces that have no light of their own: a cool moon
+ * from one side, the dark sky from above, light bounced up from the lit
+ * streets, and the warm glow of lamps and shop windows near the ground.
+ * `view` points from the surface to the camera.
+ */
+export const LIGHTING = /* glsl */ `
+uniform vec3 uMoonDir;
+uniform vec3 uMoonColor;
+uniform vec3 uSkyLight;
+uniform vec3 uBounce;
+uniform vec3 uStreetLight;
+
+vec3 shade(vec3 albedo, vec3 n, vec3 world, vec3 view, float occlusion) {
+  vec3 ambient = mix(uBounce, uSkyLight, n.y * 0.5 + 0.5);
+  float moon = max(dot(n, uMoonDir), 0.0);
+  float nearStreet = exp(-max(world.y, 0.0) * 0.12);
+  vec3 street = uStreetLight * nearStreet * (0.5 + 0.5 * (1.0 - abs(n.y)) + 0.6 * max(-n.y, 0.0));
+  float rim = pow(1.0 - clamp(dot(n, view), 0.0, 1.0), 4.0);
+  return (albedo * (ambient + uMoonColor * moon + street) + uSkyLight * rim * 0.6) * occlusion;
+}
 `;
 
 // Ends every fragment shader: applies the renderer's tone mapping and colour
@@ -51,7 +80,7 @@ export const OUTPUT = /* glsl */ `
 #include <colorspace_fragment>
 `;
 
-/** Uniforms every material shares: one clock and one haze for the whole city. */
+/** Uniforms every material shares: one clock, one haze and one set of lights for the whole city. */
 export function createSharedUniforms(palette, fogDensity) {
   return {
     uTime: { value: 0 },
@@ -61,5 +90,10 @@ export function createSharedUniforms(palette, fogDensity) {
     // Turns a size in metres into pixels for point sprites: the drawing height
     // over 2·tan(fov / 2). The engine sets it whenever the view is resized.
     uPointScale: { value: 600 },
+    uMoonDir: { value: palette.moonDir },
+    uMoonColor: { value: palette.moonLight },
+    uSkyLight: { value: palette.skyLight },
+    uBounce: { value: palette.bounceLight },
+    uStreetLight: { value: palette.streetLight },
   };
 }

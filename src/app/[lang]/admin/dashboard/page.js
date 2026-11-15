@@ -7,6 +7,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, addDoc, getDocs, updateDoc, doc, setDoc, getDoc, query, orderBy, deleteDoc } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
 import AssistantSettings from "@/components/admin/AssistantSettings";
+import ExploreCityFields from "@/components/admin/ExploreCityFields";
 import QuestionsEditor from "@/components/admin/QuestionsEditor";
 import BilingualField from "@/components/admin/translator/BilingualField";
 import BilingualLogFields from "@/components/admin/translator/BilingualLogFields";
@@ -14,7 +15,8 @@ import MissingLanguageNotice from "@/components/admin/translator/MissingLanguage
 import { useTranslator } from "@/components/admin/translator/useTranslator";
 import { refreshPublicSite, uploadProjectImage } from "@/lib/adminApi";
 import { bilingualGaps, translationJobs } from "@/lib/content/bilingual";
-import { normalizeTags, safeUrl } from "@/lib/content/normalize";
+import { exploreIsEmpty, localizePost, normalizeExplore, normalizePost, normalizeTags, safeUrl } from "@/lib/content/normalize";
+import { assignPlaces } from "@/lib/explore/city";
 import { compressImage } from "@/lib/imageCompression";
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -25,6 +27,36 @@ const snapProgress = (value) => {
   const n = Number(value) || 0;
   return PROGRESS_STEPS.reduce((best, step) => (Math.abs(step - n) < Math.abs(best - n) ? step : best), 0);
 };
+
+// Firestore timestamps arrive as objects here, but as text on the public site.
+const isoTime = (value) => {
+  if (typeof value === "string") return value;
+  const date = value instanceof Date ? value : value?.toDate?.();
+  return date && !Number.isNaN(date.getTime()) ? date.toISOString() : "";
+};
+
+/**
+ * Where the post being edited would stand in the 3D city, given every other
+ * post: the place id, whether it is a landmark, and which places other posts
+ * are pinned to (place id → title).
+ */
+function cityPreview(logs, editingId, data) {
+  const others = logs.filter((log) => log.id !== editingId).map((log) => normalizePost({ ...log, createdAt: isoTime(log.createdAt) }));
+  const current = normalizePost({
+    id: editingId || "new-post",
+    slug: data.slug.trim().toLowerCase(),
+    date: data.date,
+    createdAt: editingId ? isoTime(logs.find((log) => log.id === editingId)?.createdAt) : new Date().toISOString(),
+    en: data.en,
+    ar: data.ar,
+    explore: data.explore,
+  });
+  let standsAt = "";
+  for (const [placeId, post] of assignPlaces([...others, current])) if (post === current) standsAt = placeId;
+  const pinnedBy = new Map(others.filter((post) => post.explore.place).map((post) => [post.explore.place, localizePost(post, "en").title]));
+  const kind = standsAt === "grad" ? "graduation" : standsAt === "coop" ? "coop" : "project";
+  return { standsAt, pinnedBy, kind };
+}
 
 export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
@@ -71,7 +103,9 @@ export default function AdminDashboard() {
     githubUrl: "",
     liveUrl: "",
     ar: { title: "", description: "", content: "" },
-    en: { title: "", description: "", content: "" }
+    en: { title: "", description: "", content: "" },
+    explore: normalizeExplore(),
+    hadExplore: false
   });
   const [logData, setLogData] = useState(emptyLog);
   
@@ -156,7 +190,9 @@ export default function AdminDashboard() {
       githubUrl: log.githubUrl || "",
       liveUrl: log.liveUrl || "",
       ar: log.ar || { title: "", description: "", content: "" },
-      en: log.en || { title: "", description: "", content: "" }
+      en: log.en || { title: "", description: "", content: "" },
+      explore: normalizeExplore(log.explore),
+      hadExplore: Boolean(log.explore)
     });
     setShowLogGaps(false);
     setIsLogModalOpen(true);
@@ -263,6 +299,9 @@ export default function AdminDashboard() {
         ar: trimTexts(data.ar),
         en: trimTexts(data.en)
       };
+      // The 3D city settings are saved once any is set (and kept in step after that).
+      const explore = normalizeExplore(data.explore);
+      if (data.hadExplore || !exploreIsEmpty(explore)) postPayload.explore = explore;
 
       if (editingLogId) {
         await updateDoc(doc(db, "posts", editingLogId), postPayload);
@@ -661,6 +700,25 @@ export default function AdminDashboard() {
                     onTranslateAndSave={translateMissingAndSave}
                   />
                 )}
+                {(() => {
+                  const preview = cityPreview(logs, editingLogId, logData);
+                  return (
+                    <ExploreCityFields
+                      value={logData.explore}
+                      onChange={(explore) => setLogData((prev) => ({ ...prev, explore }))}
+                      post={{
+                        slug: logData.slug.trim().toLowerCase(),
+                        date: logData.date,
+                        tags: normalizeTags(logData.tagsStr),
+                        en: trimTexts(logData.en),
+                        ar: trimTexts(logData.ar),
+                      }}
+                      kind={preview.kind}
+                      standsAt={preview.standsAt}
+                      pinnedBy={preview.pinnedBy}
+                    />
+                  );
+                })()}
                 <button type="submit" disabled={isSubmitting || logTranslator.busy} className="w-full py-4 bg-cyan/10 text-cyan font-bold rounded-lg border border-cyan/50 hover:bg-cyan hover:text-black disabled:opacity-50">
                   {isSubmitting ? "SAVING..." : (editingLogId ? "UPDATE LOG" : "SAVE LOG")}
                 </button>

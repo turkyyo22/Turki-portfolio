@@ -256,6 +256,21 @@ html:has(.explore-track)::-webkit-scrollbar {
   animation: explore-wheel 1.6s ease-in-out infinite;
 }
 
+/* The "drag to look around" hint: the arrows sway from side to side. */
+@keyframes explore-drag {
+  0%,
+  100% {
+    transform: translateX(-2px);
+  }
+  50% {
+    transform: translateX(2px);
+  }
+}
+
+.explore-drag {
+  animation: explore-drag 1.8s ease-in-out infinite;
+}
+
 /* Honour the visitor's "reduce motion" setting for CSS animations too */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -277,6 +292,13 @@ html:has(.explore-track)::-webkit-scrollbar {
   /* The Exit button's ring is small, so it keeps turning, only slower. */
   .explore-exit-ring {
     animation-duration: 10s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  /* So do the small "how to move" hints in the city: they show what to do. */
+  .explore-wheel,
+  .explore-drag {
+    animation-duration: 2.6s !important;
     animation-iteration-count: infinite !important;
   }
 }

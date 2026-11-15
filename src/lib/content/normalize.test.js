@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  exploreIsEmpty,
   localizePost,
+  normalizeExplore,
   normalizePost,
   normalizeProjectsMenu,
   normalizeTags,
@@ -42,6 +44,37 @@ describe("normalizePost", () => {
       en: { title: "Munset", description: "", content: "" },
       ar: { title: "", description: "", content: "" },
     });
+  });
+});
+
+describe("normalizeExplore", () => {
+  it("keeps valid settings and the robot's lines per language", () => {
+    const explore = normalizeExplore({
+      place: "A2",
+      size: "large",
+      type: "Tower",
+      accent: "#FF00AA",
+      lines: { en: { arrival: [" Hello ", "", 4], fact: ["a", "b", "c", "d"], tagline: "Drive on" }, fr: { arrival: ["x"] } },
+    });
+    expect(explore).toMatchObject({ place: "a2", size: "large", type: "tower", accent: "#ff00aa" });
+    expect(explore.lines.en).toEqual({ arrival: ["Hello"], fact: ["a", "b", "c"], detail: [], tagline: "Drive on" });
+    expect(explore.lines.ar).toEqual({ arrival: [], fact: [], detail: [], tagline: "" });
+    expect(explore.lines.fr).toBeUndefined();
+  });
+
+  it("drops anything malformed", () => {
+    expect(normalizeExplore({ place: "a2; drop", size: "huge", type: "<b>", accent: "red" })).toMatchObject({ place: "", size: "", type: "", accent: "" });
+    expect(normalizeExplore(undefined).place).toBe("");
+  });
+});
+
+describe("exploreIsEmpty", () => {
+  it("is true only when nothing is set", () => {
+    expect(exploreIsEmpty(normalizeExplore())).toBe(true);
+    expect(exploreIsEmpty(undefined)).toBe(true);
+    expect(exploreIsEmpty(normalizeExplore({ accent: "#00ff00" }))).toBe(false);
+    expect(exploreIsEmpty(normalizeExplore({ lines: { ar: { tagline: "منصّت" } } }))).toBe(false);
+    expect(exploreIsEmpty(normalizeExplore({ lines: { en: { detail: ["Read on"] } } }))).toBe(false);
   });
 });
 

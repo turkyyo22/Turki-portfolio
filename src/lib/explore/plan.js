@@ -1,8 +1,8 @@
-// The route of Explore mode: which projects become stops in the 3D city, in what
-// order, and how scrolling moves the visitor along the street.
-// Pure functions: no three.js and no DOM, so they are easy to test.
-
-import { localizePost } from "@/lib/content/normalize";
+// Pure helpers for the tour of the 3D city: what kind of post a stop is (a
+// project, the graduation project or the co-op training), which hologram floats
+// above its building, the words on the street signs, and how scrolling moves the
+// visitor from stop to stop. No three.js and no DOM, so they are easy to test.
+// The city's map and the route through it are in city.js.
 
 const GRADUATION = /graduat|تخرج/i;
 const COOP = /co-?op|تدريب تعاوني/i;
@@ -19,7 +19,7 @@ const THEMES = [
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-/** "graduation", "coop" or "project". The two landmarks close the tour. */
+/** "graduation", "coop" or "project". The first two are the city's landmarks. */
 export function stopKind(post) {
   const text = `${post?.slug ?? ""} ${post?.en?.title ?? ""} ${post?.ar?.title ?? ""}`;
   if (post?.slug === "coop" || COOP.test(text)) return "coop";
@@ -35,19 +35,7 @@ export function stopTheme(post, kind = stopKind(post)) {
   return THEMES.find(([, pattern]) => pattern.test(text))?.[0] ?? "gem";
 }
 
-/** The part of the city a stop stands in. The street gets fancier from "old" to "business". */
-export function stopDistrict(kind, tier) {
-  if (kind === "graduation") return "graduation";
-  if (kind === "coop") return "business";
-  if (tier < 0.3) return "old";
-  return tier < 0.6 ? "mid" : "neon";
-}
-
-const dateOf = (post) => post.date || post.createdAt || "";
-
-const nameOf = (item, lang) => (lang === "ar" ? item.arName : item.enName) || item.enName || item.arName || "";
-
-/** Short tech names (from the skills list) that become the neon shop signs along the street. */
+/** Short tech names (from the skills list) that become the neon shop signs along the streets. */
 export function signWords(skills, limit = 28) {
   const seen = new Set();
   const words = [];
@@ -62,59 +50,6 @@ export function signWords(skills, limit = 28) {
     }
   }
   return words.slice(0, limit);
-}
-
-/**
- * Turns the published posts into the tour.
- * Order: projects from the oldest to the newest, then the graduation project,
- * then the co-op training, so the street starts small and ends at the landmarks.
- * `tier` runs from 0 (first stop) to 1 (last stop) and sets how grand a building is.
- */
-export function buildTour({ posts = [], menu = [], skills = [], lang = "en" } = {}) {
-  const ordered = posts
-    .map((post) => ({ post, kind: stopKind(post) }))
-    .sort((a, b) => {
-      const rank = { project: 0, graduation: 1, coop: 2 };
-      return rank[a.kind] - rank[b.kind] || dateOf(a.post).localeCompare(dateOf(b.post));
-    });
-
-  const progressBySlug = new Map(menu.filter((item) => item.slug).map((item) => [item.slug, item.progress]));
-
-  const stops = ordered.map(({ post, kind }, index) => {
-    const { title, description, content } = localizePost(post, lang);
-    const tier = ordered.length > 1 ? index / (ordered.length - 1) : 0.5;
-    const progress = progressBySlug.has(post.slug) ? progressBySlug.get(post.slug) : null;
-    return {
-      id: post.id || post.slug || `stop-${index}`,
-      slug: post.slug,
-      kind,
-      theme: stopTheme(post, kind),
-      district: stopDistrict(kind, tier),
-      // Buildings alternate sides of the street, starting on the right.
-      side: index % 2 === 0 ? 1 : -1,
-      tier,
-      title,
-      description,
-      hasDetails: Boolean(post.isExpandable && content),
-      date: post.date,
-      year: (post.date || "").slice(0, 4),
-      imageUrl: post.imageUrl,
-      githubUrl: post.githubUrl,
-      liveUrl: post.liveUrl,
-      progress,
-      inProgress: progress !== null && progress < 100,
-    };
-  });
-
-  // Unfinished projects that have no post yet stand as construction sites at the end of the street.
-  const published = new Set(posts.map((post) => post.slug).filter(Boolean));
-  const upcoming = menu
-    .filter((item) => item.progress < 100 && !(item.slug && published.has(item.slug)))
-    .map((item) => ({ id: item.id, name: nameOf(item, lang), progress: item.progress }))
-    .filter((item) => item.name)
-    .slice(0, 3);
-
-  return { stops, upcoming, signs: signWords(skills) };
 }
 
 // --- Scrolling -------------------------------------------------------------
@@ -163,32 +98,14 @@ export function tourStage(position, stopCount) {
   return { kind: "cruise", index: clamp(Math.floor(position), 0, stopCount) };
 }
 
-// --- The street ------------------------------------------------------------
-
-// Distances along the street, in metres. The visitor flies toward negative z.
-export const ROUTE = {
-  intro: 64, // from the start to where the camera pauses for the first stop
-  leg: 104, // between two stops
-  finale: 124, // from the last stop to the end of the tour
-  // Where the cross street lies between two stops, as a share of the leg. Past
-  // the midpoint, so the building just visited has room behind it.
-  crossAt: 0.58,
-};
-
-/** Where the camera pauses for stop `index`. */
-export const stationZ = (index) => -(ROUTE.intro + index * ROUTE.leg);
-
-/** Where the tour ends. */
-export function routeEnd(stopCount) {
-  return stopCount > 0 ? stationZ(stopCount - 1) - ROUTE.finale : -(ROUTE.intro + ROUTE.finale);
-}
-
-/** The camera's z for a tour position (see `tourPosition`). */
-export function routeZ(position, stopCount) {
-  const legs = legCount(stopCount);
-  const clamped = clamp(position, 0, legs);
+/**
+ * Turns a tour position (in legs) into a distance along the route, given where
+ * each stop lies on it (`stopDistances`, in route order) and its total length.
+ */
+export function routeDistance(position, stopDistances, routeLength) {
+  const bounds = [0, ...stopDistances, routeLength];
+  const legs = bounds.length - 1;
+  const clamped = clamp(Number(position) || 0, 0, legs);
   const leg = Math.min(Math.floor(clamped), legs - 1);
-  const from = leg === 0 ? 0 : stationZ(leg - 1);
-  const to = leg >= stopCount ? routeEnd(stopCount) : stationZ(leg);
-  return from + (to - from) * (clamped - leg);
+  return bounds[leg] + (bounds[leg + 1] - bounds[leg]) * (clamped - leg);
 }

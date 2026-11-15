@@ -13,22 +13,10 @@ const ghostButton =
   "inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-white/85 transition-all hover:border-cyan/50 hover:text-cyan active:scale-95";
 const iconButton =
   "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 text-white/80 transition-all hover:border-cyan/50 hover:text-cyan active:scale-95";
+const roundButton =
+  "inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-[#050A15]/75 text-white/85 shadow-[0_0_18px_rgb(0_0_0/0.35)] backdrop-blur-xl transition-all hover:border-cyan/50 hover:text-cyan active:scale-95";
 
 const fade = { initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: 8 }, transition: { duration: 0.25, ease: "easeOut" } };
-
-/** What T.A Core says at this point of the tour. */
-function guideLine(stage, tour, dict) {
-  if (stage.kind === "intro") return dict.guide.intro;
-  if (stage.kind === "finale") return dict.guide.finale;
-  const stop = tour.stops[stage.index];
-  if (stage.kind === "cruise") return stop ? format(dict.guide.next, { title: stop.title }) : dict.guide.toFinale;
-  if (!stop) return "";
-  if (stop.kind === "graduation") return dict.guide.graduation;
-  if (stop.kind === "coop") return dict.guide.coop;
-  if (stop.inProgress) return format(dict.guide.inProgress, { progress: stop.progress });
-  if (stage.index === 0) return dict.guide.first;
-  return dict.guide.project[(stage.index - 1) % dict.guide.project.length];
-}
 
 /** The part of the city the visitor is in (a key of dict.districts). */
 function districtOf(stage, tour) {
@@ -52,22 +40,64 @@ function Chevron({ back = false }) {
   );
 }
 
+function SpeakerIcon({ on }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="h-5 w-5" aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"
+      />
+      {on ? (
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424" />
+      ) : (
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 9.75L19.5 12m0 0l2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25" />
+      )}
+    </svg>
+  );
+}
+
 /**
  * Everything drawn over the 3D city: the Exit button, the tour's progress, the
- * guide's speech bubble, the card of the stop in view, and the end screen.
- * `bubbleRef` and `barRef` are moved every frame by ExploreMode.
+ * guide's speech bubble, the card of the stop in view, the sound, graphics and
+ * recentre controls, and the end screen. `bubbleRef` and `barRef` are moved every
+ * frame by ExploreMode. While a project's details are open (`hidden`), it fades
+ * back and can't be reached.
  */
-export default function ExploreHud({ lang, dict, tour, stage, ready, touch, slow, onDismissSlow, onFlyTo, bubbleRef, barRef }) {
+export default function ExploreHud({
+  lang,
+  dict,
+  tour,
+  stage,
+  ready,
+  hidden,
+  touch,
+  slow,
+  onDismissSlow,
+  onFlyTo,
+  onOpenDetails,
+  bubbleRef,
+  barRef,
+  line,
+  turned,
+  onRecentre,
+  dragHint,
+  soundAvailable,
+  soundOn,
+  onSound,
+  quality,
+  onQuality,
+}) {
   const total = tour.stops.length;
   const stop = stage.kind === "stop" ? tour.stops[stage.index] : null;
   const district = dict.districts[districtOf(stage, tour)];
-  const line = guideLine(stage, tour, dict);
   // The last stop the visitor has reached, for the dots at the top.
   const reached = stage.kind === "finale" ? total : stage.kind === "stop" ? stage.index : stage.kind === "cruise" ? stage.index - 1 : -1;
   const otherLang = lang === "en" ? "ar" : "en";
+  const controls = dict.controls;
 
   return (
-    <div className={ready ? "opacity-100 transition-opacity duration-700" : "pointer-events-none opacity-0"}>
+    <div inert={hidden} className={ready ? `transition-opacity duration-500 ${hidden ? "opacity-30" : "opacity-100"}` : "pointer-events-none opacity-0"}>
       {/* How far along the street the visitor is */}
       <div aria-hidden="true" className="pointer-events-none fixed inset-x-0 top-0 z-30 h-[3px] bg-white/5">
         <div ref={barRef} className="h-full origin-left scale-x-0 bg-gradient-to-r from-cyan to-blue shadow-[0_0_10px_rgb(var(--accent-cyan-rgb)/0.6)] rtl:origin-right rtl:bg-gradient-to-l" />
@@ -117,7 +147,7 @@ export default function ExploreHud({ lang, dict, tour, stage, ready, touch, slow
         </nav>
 
         <div className="pointer-events-auto flex shrink-0 items-center gap-2">
-          <p className={`${chip} max-w-[46vw] truncate px-3 py-1.5 font-mono text-[11px] tracking-wide text-white/80 sm:text-xs`}>
+          <p className={`${chip} max-w-[38vw] truncate px-3 py-1.5 font-mono text-[11px] tracking-wide text-white/80 sm:max-w-[46vw] sm:text-xs`}>
             <span className="text-cyan">{district}</span>
             {stop && (
               <bdi dir="ltr" className="ms-2 text-white/50">
@@ -136,21 +166,86 @@ export default function ExploreHud({ lang, dict, tour, stage, ready, touch, slow
         </div>
       </header>
 
-      {/* T.A Core's speech bubble, kept above the robot by ExploreMode */}
-      <div ref={bubbleRef} aria-hidden="true" className="pointer-events-none fixed left-0 top-0 z-20 will-change-transform" style={{ transform: "translate3d(-999px, -999px, 0)" }}>
-        <AnimatePresence mode="wait">
-          <motion.p
-            key={line}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="w-max max-w-[min(280px,calc(100vw-24px))] -translate-x-1/2 -translate-y-full rounded-2xl border border-cyan/30 bg-[#050A15]/85 px-3.5 py-2.5 text-[13px] leading-snug text-white shadow-[0_0_18px_rgb(var(--accent-cyan-rgb)/0.18)] backdrop-blur-md"
+      {/* Sound, graphics and (when the view is turned) recentre, down the side */}
+      <div className="pointer-events-none fixed end-3 top-16 z-30 flex flex-col items-end gap-2 sm:end-4 sm:top-[4.75rem]">
+        {soundAvailable && (
+          <button
+            type="button"
+            onClick={onSound}
+            aria-pressed={soundOn}
+            aria-label={soundOn ? controls.soundOff : controls.soundOn}
+            title={soundOn ? controls.soundOff : controls.soundOn}
+            className={`${roundButton} pointer-events-auto ${soundOn ? "text-cyan" : ""}`}
           >
-            <span className="mb-0.5 block font-mono text-[10px] uppercase tracking-widest text-cyan">{dict.guide.name}</span>
-            {line}
-          </motion.p>
+            <SpeakerIcon on={soundOn} />
+          </button>
+        )}
+        <div role="group" aria-label={controls.quality} title={controls.quality} className={`${chip} pointer-events-auto flex items-center p-1 font-mono text-[10px] uppercase tracking-wider`}>
+          {["low", "high"].map((level) => (
+            <button
+              key={level}
+              type="button"
+              onClick={() => onQuality(level)}
+              aria-pressed={quality === level}
+              className={`rounded-full px-2.5 py-1 transition-colors ${quality === level ? "bg-cyan/20 text-cyan" : "text-white/55 hover:text-white"}`}
+            >
+              {controls[level]}
+            </button>
+          ))}
+        </div>
+        <AnimatePresence>
+          {turned && (
+            <motion.button
+              key="recentre"
+              type="button"
+              {...fade}
+              onClick={onRecentre}
+              aria-label={controls.recentre}
+              title={controls.recentre}
+              className={`${roundButton} pointer-events-auto text-cyan`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="h-5 w-5" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 3.75H6A2.25 2.25 0 003.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0120.25 6v1.5m0 9V18A2.25 2.25 0 0118 20.25h-1.5m-9 0H6A2.25 2.25 0 013.75 18v-1.5M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </motion.button>
+          )}
         </AnimatePresence>
+      </div>
+
+      {/* At the first stops: the view can be turned */}
+      <AnimatePresence>
+        {dragHint && (
+          <motion.div key="drag" {...fade} aria-hidden="true" className="pointer-events-none fixed inset-x-0 top-[4.5rem] z-20 flex justify-center sm:top-24">
+            <span className={`${chip} inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-white/85`}>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="explore-drag h-4 w-4 text-cyan" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+              </svg>
+              {controls.dragHint}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* T.A Core's speech bubble, kept above the robot by ExploreMode */}
+      <div ref={bubbleRef} className="pointer-events-none fixed left-0 top-0 z-20 will-change-transform" style={{ transform: "translate3d(-999px, -999px, 0)" }}>
+        {/* Centred above the point it is moved to; the line itself pops in from its bottom edge. */}
+        <div aria-live="polite" aria-atomic="true" className="-translate-x-1/2 -translate-y-full">
+          <AnimatePresence mode="wait">
+            {line?.text && (
+              <motion.p
+                key={line.id}
+                initial={{ opacity: 0, scale: 0.92 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.18 }}
+                className="w-max max-w-[min(280px,calc(100vw-24px))] origin-bottom rounded-2xl border border-cyan/30 bg-[#050A15]/85 px-3.5 py-2.5 text-[13px] leading-snug text-white shadow-[0_0_18px_rgb(var(--accent-cyan-rgb)/0.18)] backdrop-blur-md"
+              >
+                <span className="mb-0.5 block font-mono text-[10px] uppercase tracking-widest text-cyan">{dict.guide.name}</span>
+                {line.text}
+              </motion.p>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* The card of the stop in view, on the side away from its building */}
@@ -183,11 +278,12 @@ export default function ExploreHud({ lang, dict, tour, stage, ready, touch, slow
               <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted sm:line-clamp-4">{stop.description}</p>
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
-                {stop.slug && (
-                  <Link href={`/${lang}#log-${stop.slug}`} className={primaryButton}>
-                    {dict.card.open}
-                  </Link>
-                )}
+                <button type="button" onClick={() => onOpenDetails(stage.index)} className={primaryButton}>
+                  {dict.card.details}
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.2} stroke="currentColor" className="h-3.5 w-3.5" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                  </svg>
+                </button>
                 {stop.githubUrl && (
                   <a href={stop.githubUrl} target="_blank" rel="noopener noreferrer" className={ghostButton}>
                     {dict.card.github}
@@ -261,7 +357,12 @@ export default function ExploreHud({ lang, dict, tour, stage, ready, touch, slow
       {/* Shown once, if the city keeps running slowly even at the lowest quality */}
       <AnimatePresence>
         {slow && (
-          <motion.div key="slow" role="status" {...fade} className={`${panel} pointer-events-auto fixed inset-x-3 top-16 z-30 mx-auto flex max-w-md flex-wrap items-center justify-center gap-2 px-4 py-3 text-sm text-white/90 sm:top-20`}>
+          <motion.div
+            key="slow"
+            role="status"
+            {...fade}
+            className={`${panel} pointer-events-auto fixed end-16 start-3 top-16 z-30 mx-auto flex max-w-md flex-wrap items-center justify-center gap-2 px-4 py-3 text-sm text-white/90 sm:inset-x-3 sm:top-20`}
+          >
             <span className="me-1">{dict.slow.text}</span>
             <Link href={`/${lang}`} className={primaryButton}>
               {dict.slow.action}

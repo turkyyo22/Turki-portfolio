@@ -1,6 +1,6 @@
 import ExploreMode from "@/components/explore/ExploreMode";
 import { getDictionary } from "@/get-dictionary";
-import { buildTour } from "@/lib/explore/plan";
+import { buildCity } from "@/lib/explore/city";
 import { getPosts, getProjectsMenu, getSkills } from "@/lib/server/content";
 
 // The city is built from the same content as the main page and refreshes with it.
@@ -32,12 +32,12 @@ export async function generateMetadata({ params }) {
 
 /**
  * Explore mode: an optional 3D tour of the projects as a neon city.
- * The page only prepares the tour's content; the 3D part loads in the browser.
+ * The page plans the city from the content; the 3D part loads in the browser.
  */
 export default async function ExplorePage({ params }) {
   const { lang } = await params;
   const [dict, posts, menu, skills] = await Promise.all([getDictionary(lang), getPosts(), getProjectsMenu(), getSkills()]);
-  const tour = buildTour({ posts, menu, skills, lang });
+  const city = buildCity({ posts, menu, skills, lang });
 
-  return <ExploreMode lang={lang} dict={dict.explore} tour={tour} />;
+  return <ExploreMode lang={lang} dict={dict.explore} city={city} />;
 }

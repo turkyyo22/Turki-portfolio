@@ -183,9 +183,8 @@
       "start": "City Gate",
       "old": "Old Town",
       "mid": "Midtown",
-      "neon": "Neon District",
-      "graduation": "Graduation Square",
-      "business": "Business Bay",
+      "centre": "City Centre",
+      "new": "New District",
       "frontier": "The Frontier"
     },
     "guide": {
@@ -202,7 +201,67 @@
       "inProgress": "This one is still under construction: {progress}% built.",
       "graduation": "Graduation Square! This is the project he graduated with.",
       "coop": "And the tallest tower in the city: his co-op training.",
-      "finale": "That's the tour! The next building could be the one you build together."
+      "finale": "That's the tour! The next building could be the one you build together.",
+      "reactions": {
+        "ouch": [
+          "Ouch!",
+          "Hey, that tickles!",
+          "Ow! Careful with the antenna!",
+          "Beep… that was my sensor."
+        ],
+        "annoyed": [
+          "Okay, okay! Now I'm dizzy!",
+          "Stop poking me, I'm working!"
+        ],
+        "fast": [
+          "Slow down, please!",
+          "Whoa, not so fast!",
+          "Easy! My thrusters can't keep up."
+        ],
+        "backwards": [
+          "Forgot something?",
+          "Going back? Fine by me."
+        ],
+        "skipped": [
+          "You missed one: {title}!",
+          "Wait, we flew right past {title}."
+        ],
+        "idleStop": [
+          "Want the details? Tap the card.",
+          "Tap the building to see more."
+        ],
+        "sleep": [
+          "Zzz… scroll when you're ready."
+        ],
+        "wake": [
+          "Huh? I'm up, I'm up!"
+        ],
+        "thisIs": [
+          "This is {title}."
+        ],
+        "details": [
+          "Take your time.",
+          "Here are the details."
+        ],
+        "dimmed": [
+          "I dimmed a few lights so this runs smoothly."
+        ],
+        "soundOn": [
+          "Ah, the sound of the city!"
+        ],
+        "soundOff": [
+          "Shh… quiet mode."
+        ],
+        "welcomeBack": [
+          "Welcome back! Last time you stopped at {title}."
+        ],
+        "lateNight": [
+          "Up late? The city never sleeps either."
+        ],
+        "morning": [
+          "Good morning! The neon is still on."
+        ]
+      }
     },
     "card": {
       "stop": "Stop {number} of {total}",
@@ -211,7 +270,9 @@
       "previous": "Previous stop",
       "next": "Next stop",
       "github": "GitHub",
-      "live": "Live demo"
+      "live": "Live demo",
+      "details": "Open details",
+      "mainSite": "View on the main site"
     },
     "finale": {
       "eyebrow": "The Frontier",
@@ -227,17 +288,8 @@
       "finale": [
         "YOUR PROJECT",
         "HERE?"
-      ]
-    },
-    "gate": {
-      "title": "Explore mode works best on a computer",
-      "text": "It's a 3D world, so on this phone it may run slower and use more battery.",
-      "lite": "Try the lite version",
-      "share": "Send me the link",
-      "shareTitle": "Turki Aloufi's 3D city",
-      "copied": "Link copied",
-      "back": "Back to the portfolio",
-      "remember": "Don't show this again"
+      ],
+      "gate": "TURKI ALOUFI"
     },
     "unsupported": {
       "title": "This device can't show the 3D city",
@@ -253,6 +305,27 @@
       "timeline": "Tour stops",
       "goTo": "Go to {title}",
       "end": "Go to the end of the street"
+    },
+    "controls": {
+      "recentre": "Recentre the view",
+      "dragHint": "Drag to look around",
+      "soundOn": "Turn the sound on",
+      "soundOff": "Turn the sound off",
+      "quality": "Graphics",
+      "low": "Low",
+      "high": "High"
+    },
+    "detail": {
+      "close": "Close",
+      "builtWith": "Built with",
+      "mainSite": "View on the main site",
+      "openedFrom": "Stop {number}"
+    },
+    "start": {
+      "title": "The city is ready",
+      "enter": "Enter the city",
+      "silent": "Enter without sound",
+      "hint": "The city has sound. You can turn it off at any time."
     }
   },
   "footer": {

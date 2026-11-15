@@ -40,6 +40,66 @@ function localizedText(raw) {
   };
 }
 
+// --- Explore mode (the 3D city) ---------------------------------------------
+// Optional settings for how a post appears in the city, edited in the admin
+// dashboard. Every field may be empty; the city then picks a default.
+
+export const EXPLORE_SIZES = ["small", "medium", "large"];
+
+// What the guide robot says about a building, written per language. Each kind
+// holds a few variants so the robot doesn't repeat itself.
+export const EXPLORE_LINE_KINDS = { arrival: 3, fact: 3, detail: 2 };
+export const LINE_MAX_CHARS = 180;
+export const TAGLINE_MAX_CHARS = 48;
+
+function lineList(value, max) {
+  const list = Array.isArray(value) ? value : [];
+  return list
+    .map((item) => text(item).slice(0, LINE_MAX_CHARS))
+    .filter(Boolean)
+    .slice(0, max);
+}
+
+/** The robot's lines about one building in one language. */
+export function normalizeExploreLines(raw) {
+  const lines = {};
+  for (const [kind, max] of Object.entries(EXPLORE_LINE_KINDS)) lines[kind] = lineList(raw?.[kind], max);
+  lines.tagline = text(raw?.tagline).slice(0, TAGLINE_MAX_CHARS);
+  return lines;
+}
+
+/**
+ * - `place`: where the building stands (a place id from src/lib/explore/city.js), or "" to let the city choose.
+ * - `size`: "small", "medium" or "large", or "" for the place's own size.
+ * - `type`: the kind of building ("workshop", "tower", …), or "" for the place's default.
+ * - `accent`: a "#rrggbb" neon colour for the building, or "".
+ * - `lines`: the guide robot's lines about it, per language.
+ */
+export function normalizeExplore(raw) {
+  const place = text(raw?.place).toLowerCase();
+  const type = text(raw?.type).toLowerCase();
+  const accent = text(raw?.accent).toLowerCase();
+  const lines = {};
+  for (const lang of LANGS) lines[lang] = normalizeExploreLines(raw?.lines?.[lang]);
+  return {
+    place: /^[a-z0-9-]{1,24}$/.test(place) ? place : "",
+    size: EXPLORE_SIZES.includes(raw?.size) ? raw.size : "",
+    type: /^[a-z]{2,24}$/.test(type) ? type : "",
+    accent: /^#[0-9a-f]{6}$/.test(accent) ? accent : "",
+    lines,
+  };
+}
+
+/** True when normalized `explore` settings hold nothing: no place, look or robot line. */
+export function exploreIsEmpty(explore) {
+  if (!explore) return true;
+  if (explore.place || explore.size || explore.type || explore.accent) return false;
+  return LANGS.every((lang) => {
+    const lines = explore.lines?.[lang];
+    return !lines?.tagline && Object.keys(EXPLORE_LINE_KINDS).every((kind) => !lines?.[kind]?.length);
+  });
+}
+
 export function normalizePost(raw) {
   const post = {
     id: text(raw?.id),
@@ -51,6 +111,7 @@ export function normalizePost(raw) {
     tags: normalizeTags(raw?.tags),
     githubUrl: safeUrl(raw?.githubUrl),
     liveUrl: safeUrl(raw?.liveUrl),
+    explore: normalizeExplore(raw?.explore),
   };
   for (const lang of LANGS) post[lang] = localizedText(raw?.[lang]);
   return post;

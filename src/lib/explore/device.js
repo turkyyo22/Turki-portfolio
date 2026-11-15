@@ -1,22 +1,21 @@
-// Decides how Explore mode should start on this device: straight away, after
-// asking (phones), or not at all (no 3D support), and at which quality.
+// Decides how Explore mode starts on this device: at Low or High quality, or not
+// at all when the browser can't draw 3D. Phones are first-class visitors: they
+// start straight away at Low. The visitor can switch quality in the city, and
+// the choice is remembered.
 
-const GATE_KEY = "explore-gate";
+const QUALITY_KEY = "explore-quality";
 
 /**
  * - "unsupported": the browser can't draw the 3D city.
- * - "ask": a phone. The visitor chooses between the lite version, sending the
- *   link to a computer, and going back.
  * - "go": start right away.
- * `quality` is the starting quality: "high", "medium" or "lite". The engine
- * lowers it by itself if the frame rate turns out low.
+ * `quality` is the starting quality, "low" or "high": Low on phones, tablets and
+ * modest computers, High on capable ones. The engine lowers it further by itself
+ * if the frame rate turns out low.
  */
-export function assessDevice({ webgl = false, touchOnly = false, shortSide = 0, memory = 0, cores = 0 } = {}) {
-  if (!webgl) return { verdict: "unsupported", quality: "lite" };
-  // Phones: touch is the only input and the screen's short side is under 600px (tablets are wider).
-  if (touchOnly && shortSide > 0 && shortSide < 600) return { verdict: "ask", quality: "lite" };
+export function assessDevice({ webgl = false, touchOnly = false, memory = 0, cores = 0 } = {}) {
+  if (!webgl) return { verdict: "unsupported", quality: "low" };
   const modest = touchOnly || (memory > 0 && memory <= 4) || (cores > 0 && cores <= 4);
-  return { verdict: "go", quality: modest ? "medium" : "high" };
+  return { verdict: "go", quality: modest ? "low" : "high" };
 }
 
 /** True when the browser can create the WebGL 2 context that three.js needs. */
@@ -34,25 +33,24 @@ export function probeDevice() {
   return {
     webgl: hasWebGL(),
     touchOnly: window.matchMedia("(hover: none) and (pointer: coarse)").matches,
-    shortSide: Math.min(window.screen?.width || window.innerWidth, window.screen?.height || window.innerHeight),
     memory: Number(navigator.deviceMemory) || 0,
     cores: Number(navigator.hardwareConcurrency) || 0,
   };
 }
 
-/** True when the visitor ticked "Don't show this again" on the phone screen. */
-export function gateDismissed() {
+/** The quality the visitor chose last time ("low" or "high"), or "" if they never chose. */
+export function savedQuality() {
   try {
-    return localStorage.getItem(GATE_KEY) === "skip";
+    const value = localStorage.getItem(QUALITY_KEY);
+    return value === "low" || value === "high" ? value : "";
   } catch {
-    return false;
+    return "";
   }
 }
 
-export function rememberGateChoice(skip) {
+export function saveQuality(quality) {
   try {
-    if (skip) localStorage.setItem(GATE_KEY, "skip");
-    else localStorage.removeItem(GATE_KEY);
+    localStorage.setItem(QUALITY_KEY, quality);
   } catch {
     // Storage can be blocked (private windows); the choice then lasts for this visit only.
   }
