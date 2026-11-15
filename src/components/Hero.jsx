@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 
 import AskAiCard from "@/components/AskAiCard";
@@ -84,6 +85,14 @@ export default function Hero({ dict, lang, cvAvailable }) {
           <button type="button" onClick={() => scrollToId("contact")} className={secondaryButton}>
             {dict.ctaContact}
           </button>
+          {/* Explore mode: the projects as a 3D city. It loads only when opened. */}
+          <Link href={`/${lang}/explore`} className={`${secondaryButton} border-cyan/40 text-cyan hover:bg-cyan/10 hover:shadow-[0_0_20px_rgb(var(--accent-cyan-rgb)/0.3)]`}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+              <path d="M3 21V11h4v10H3zm6 0V4h6v17H9zm8 0v-8h4v8h-4z" />
+            </svg>
+            {dict.ctaExplore}
+            <span className="rounded-full bg-cyan px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wider text-[#050a15]">{dict.exploreBadge}</span>
+          </Link>
         </div>
         <button
           type="button"

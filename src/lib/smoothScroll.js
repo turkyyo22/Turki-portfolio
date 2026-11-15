@@ -67,6 +67,42 @@ function animateScroll(getTarget) {
   });
 }
 
+// For a page opened with a #hash (a project link from Explore mode, or an old
+// shared link). The browser jumps to the target once, but the page keeps shifting
+// for a moment while content loads (the CV preview, images), which can push the
+// target out of view. This keeps the target in place until `duration` ms have
+// passed, or until the visitor scrolls, taps or types. Returns a function that
+// stops it early.
+export function holdHashTarget(duration = 2500) {
+  let target = null;
+  try {
+    const id = decodeURIComponent(window.location.hash.slice(1));
+    target = id ? document.getElementById(id) : null;
+  } catch {
+    // A malformed hash names no element.
+  }
+  if (!target) return () => {};
+
+  const margin = Number.parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+  const startedAt = performance.now();
+  let frame = 0;
+
+  const stop = () => {
+    window.cancelAnimationFrame(frame);
+    INTERRUPT_EVENTS.forEach((type) => window.removeEventListener(type, stop));
+  };
+  const step = (now) => {
+    const wanted = clampY(target.getBoundingClientRect().top + currentY() - margin);
+    if (Math.abs(wanted - currentY()) > 2) window.scrollTo({ top: wanted, behavior: "instant" });
+    if (now - startedAt < duration) frame = window.requestAnimationFrame(step);
+    else stop();
+  };
+
+  INTERRUPT_EVENTS.forEach((type) => window.addEventListener(type, stop, { passive: true }));
+  frame = window.requestAnimationFrame(step);
+  return stop;
+}
+
 export function scrollToY(targetY) {
   return animateScroll(() => targetY);
 }

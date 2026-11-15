@@ -17,6 +17,8 @@ const AI_ERRORS = {
   ai_timeout: "The AI took too long to answer. Try again.",
   ai_bad_output: "The AI's answer couldn't be used. Try again.",
   translation_incomplete: "The translation came back incomplete. Try again.",
+  lines_incomplete: "The robot's lines came back incomplete. Try again.",
+  nothing_to_write: "Write the post's title and description first, so the robot knows what to say.",
   too_long: "This text is too long to translate in one go.",
   nothing_to_translate: "There's nothing to translate yet.",
   body_too_large: "This text is too long to send in one go.",
@@ -95,6 +97,15 @@ async function postJson(url, payload, { signal } = {}) {
 export async function translateFields({ from, to, context, fields, signal }) {
   const body = await postJson("/api/admin/translate", { from, to, context, fields }, { signal });
   return body.fields;
+}
+
+/**
+ * Drafts the guide robot's lines about a post's building in the 3D city, in
+ * English and Arabic. Returns `{ en, ar }` for the admin to review; nothing is saved.
+ */
+export async function draftExploreLines({ post, signal }) {
+  const body = await postJson("/api/admin/explore-lines", { post }, { signal });
+  return body.lines;
 }
 
 /**
