@@ -1,17 +1,21 @@
-import { ACESFilmicToneMapping, FogExp2, HalfFloatType, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderTarget, WebGLRenderer } from "three";
+import { ACESFilmicToneMapping, CubeCamera, FogExp2, HalfFloatType, LinearMipmapLinearFilter, PerspectiveCamera, Scene, Vector2, Vector3, WebGLCubeRenderTarget, WebGLRenderTarget, WebGLRenderer } from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 
 import { END_PLAZA, LOTS, SIDE_STREETS, footprintOf, placeById, planRoute, siteOf } from "@/lib/explore/city";
-import { tourPosition, tourStage } from "@/lib/explore/plan";
+import { SHOP_NAMES, createTour } from "@/lib/explore/plan";
 
+import { createAir } from "./effects";
 import { lineStreets } from "./fillers";
-import { bollardGeometry, createDecals, createGlows, createGround, createProps, lampGeometry } from "./ground";
+import { bollardGeometry, createGlows, createGround, createProps, lampGeometry } from "./ground";
 import { createGuide } from "./guide";
 import { createKit } from "./kit";
 import { createLife } from "./life";
+import { createLightField } from "./lightfield";
+import { createMirror } from "./mirror";
 import { createNature } from "./nature";
 import { createPalette, stopColor } from "./palette";
 import { buildPlaces } from "./places";
@@ -20,19 +24,33 @@ import { createRig } from "./rig";
 import { createSharedUniforms } from "./shaders";
 import { createSky } from "./sky";
 import { createStreetSigns } from "./signage";
+import { canvasTexture, drawShopNames } from "./signs";
 import { buildStreets } from "./streets";
 
 // What each quality level draws. `pixelRatio` is the most device pixels drawn per
 // CSS pixel; `samples` is the anti-aliasing of the post-processing buffer.
 // Low is the default on phones; High on capable computers.
+// `lightMap` is the size of the map of street-level light (see lightfield.js),
+// `sky` the size of the picture of the sky that surfaces mirror, and `mirror`
+// the size of the city's reflection in the wet road next to the main picture
+// (0: none, see mirror.js).
 export const QUALITY = {
-  high: { pixelRatio: 1.75, bloom: true, samples: 4, bloomScale: 1, stars: 2600, traffic: 1, crowd: 1, detail: true },
-  low: { pixelRatio: 1.3, bloom: true, samples: 0, bloomScale: 0.5, stars: 1300, traffic: 0.55, crowd: 0.55, detail: false },
+  high: { pixelRatio: 1.75, bloom: true, samples: 4, bloomScale: 1, stars: 2600, traffic: 1, crowd: 1, detail: true, lightMap: [1024, 2048], sky: 256, mirror: 0.5 },
+  low: { pixelRatio: 1.3, bloom: true, samples: 0, bloomScale: 0.5, stars: 1300, traffic: 0.55, crowd: 0.55, detail: false, lightMap: [512, 1024], sky: 128, mirror: 0 },
 };
+
+// The stretch of ground the map of street-level light covers: the whole city, with a margin.
+const LIT_GROUND = { minX: -250, maxX: 250, minZ: -900, maxZ: 170 };
+// The ground itself reaches far past the city, under the far towers, to the horizon.
+const GROUND = { minX: -1500, maxX: 1500, minZ: -2400, maxZ: 1600 };
 
 const FOG_DENSITY = 0.0048;
 // How quickly the camera catches up with the scroll position (higher is snappier).
-const FOLLOW = 4.2;
+// It follows like a damped spring: it sets off and settles gently, so a step of
+// the mouse wheel becomes a glide instead of a jolt.
+const FOLLOW = 6.5;
+// The visitor counts as scrolling while the camera is further than this (metres) from where the scroll points.
+const MOVING_GAP = 0.3;
 // The frame rate below which the picture is made cheaper, measured over this many frames.
 const SLOW_FPS = 27;
 const SAMPLE_FRAMES = 90;
@@ -56,6 +74,35 @@ const BRIGHT_PASS = /* glsl */ `
     gl_FragColor = mix(vec4(defaultColor.rgb, defaultOpacity), texel, amount);
   }
 `;
+
+// The last touch on the finished picture: a little grain. It hides the steps in
+// dark gradients (the night sky) and takes the computer-made edge off the image.
+const GRAIN = {
+  uniforms: { tDiffuse: { value: null }, uSeed: { value: 0 } },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform float uSeed;
+    varying vec2 vUv;
+    float hash(vec2 p) {
+      p = fract(p * vec2(123.34, 456.21));
+      p += dot(p, p + 45.32);
+      return fract(p.x * p.y);
+    }
+    void main() {
+      vec4 color = texture2D(tDiffuse, vUv);
+      float grain = hash(gl_FragCoord.xy + uSeed * 61.0) - 0.5;
+      color.rgb += grain * (0.012 + 0.018 * (1.0 - dot(color.rgb, vec3(0.333))));
+      gl_FragColor = color;
+    }
+  `,
+};
 
 const nextFrame = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -144,15 +191,23 @@ export async function createExploreEngine(options) {
 
   const palette = createPalette();
   const shared = createSharedUniforms(palette, FOG_DENSITY);
+  shared.uShopNames.value = canvasTexture(drawShopNames({ names: SHOP_NAMES, family }), 8);
   const scene = new Scene();
   // For the few built-in materials (signs, screens, holograms); the city's own shaders use `shared`.
   scene.fog = new FogExp2(palette.fog.clone().lerp(palette.fogLow, 0.6), FOG_DENSITY);
   renderer.setClearColor(palette.zenith);
   const camera = new PerspectiveCamera(60, 1, 0.3, 1600);
 
+  let lights = null;
+  let skyPicture = null;
+  let mirror = null;
   const abandon = () => {
     life.disposed = true;
     disposeScene(scene);
+    lights?.dispose();
+    skyPicture?.dispose();
+    mirror?.dispose();
+    shared.uShopNames.value.dispose();
     renderer.dispose();
     renderer.forceContextLoss();
     return null;
@@ -173,31 +228,55 @@ export async function createExploreEngine(options) {
   // --- Build the city. The same seed gives the same streets on every visit. ---
   const random = createRandom(20260112);
   const base = { scene, shared, palette, random, settings };
-  const kit = createKit({ scene, shared, low: !settings.detail });
-  const decals = createDecals(base);
+  const low = !settings.detail;
+  const kit = createKit({ scene, shared, low, coverage: settings.samples > 0 });
+  lights = createLightField({ bounds: LIT_GROUND, size: settings.lightMap });
   const glows = createGlows(base);
-  const lamps = createProps({ ...base, geometry: lampGeometry() });
-  const bollards = createProps({ ...base, geometry: bollardGeometry() });
+  const air = createAir({ ...base, low });
+  const lamps = createProps({ ...base, low, geometry: lampGeometry() });
+  const bollards = createProps({ ...base, low, geometry: bollardGeometry() });
 
   const sky = createSky(base);
-  createGround({ ...base, bounds: { minX: -300, maxX: 300, minZ: -1150, maxZ: 380 } });
-  buildStreets({ scene, kit, palette, lamps, glows, decals, text: { gate: text.gate, family, rtl } });
+  // A picture of the sky and the far city all round, taken once from above the
+  // centre, before the city is built: glass, water, paint and wet roads mirror it.
+  skyPicture = new WebGLCubeRenderTarget(settings.sky, { type: HalfFloatType, generateMipmaps: true, minFilter: LinearMipmapLinearFilter });
+  const probe = new CubeCamera(1, 3000, skyPicture);
+  probe.position.set(0, 30, -340);
+  sky.update(0, probe);
+  probe.update(renderer, scene);
+  shared.uEnv.value = skyPicture.texture;
+  shared.uEnvLevels.value = Math.max(1, Math.log2(settings.sky) - 3);
+
+  if (settings.mirror > 0) mirror = createMirror({ scale: settings.mirror });
+  const ground = createGround({ ...base, low, bounds: GROUND, mirror });
+  // Each roundabout's fountain is lit in the colour of the stop at the end of its street.
+  const squareColors = {};
+  stops.forEach((stop, index) => {
+    const place = placeById(stop.place);
+    if (place.at !== "main") squareColors[place.at] = colors[index];
+  });
+  buildStreets({ scene, kit, palette, random, lamps, glows, lights, air, sites, squareColors, detail: settings.detail, text: { gate: text.gate, family, rtl } });
   if (await progress(0.15)) return abandon();
 
   const lotsInUse = LOTS.slice(0, city.upcoming.length);
   const placeSites = stops.map((stop, index) => ({ place: placeById(stop.place), site: sites[index] }));
   const emptyEnds = new Set(SIDE_STREETS.filter((street) => street.end !== "stub" && !stops.some((stop) => placeById(stop.place).at === street.id)).map((street) => street.id));
-  const fronts = lineStreets({ kit, random, palette, detail: settings.detail, glows, placeSites, lotsInUse, emptyEnds });
+  const fronts = lineStreets({ kit, random, palette, detail: settings.detail, glows, lights, placeSites, lotsInUse, emptyEnds });
   if (await progress(0.45)) return abandon();
 
-  const places = buildPlaces({ ...base, kit, detail: settings.detail, sites, stops, upcoming: city.upcoming, decals, glows, bollards, family, rtl, text, imageFor, life, colors });
-  createStreetSigns({ ...base, fronts, words: city.signs, family, decals });
-  const nature = createNature({ ...base, sites, emptyEnds, detail: settings.detail });
-  const traffic = createLife({ ...base, kit, sites, stops });
+  const places = buildPlaces({ ...base, kit, detail: settings.detail, sites, stops, upcoming: city.upcoming, lights, glows, bollards, family, rtl, text, imageFor, life, colors });
+  createStreetSigns({ ...base, fronts, words: city.signs, family, lights });
+  const nature = createNature({ ...base, kit, sites, detail: settings.detail, coverage: settings.samples > 0 });
+  const traffic = createLife({ ...base, kit, sites, stops, air });
   if (await progress(0.7)) return abandon();
 
+  // The map of street-level light: every lamp, sign and shop front added above,
+  // and the footprints of the buildings that shade the ground round them.
+  for (const footprint of kit.footprints) lights.block(footprint);
+  shared.uLightMap.value = lights.bake(renderer);
+  shared.uLightArea.value = lights.area;
   kit.build();
-  for (const batch of [decals, glows, lamps, bollards]) batch.build();
+  for (const batch of [glows, lamps, bollards, air]) batch.build();
   const guide = createGuide({ scene, palette, calm });
   if (await progress(0.8)) return abandon();
 
@@ -222,11 +301,13 @@ export async function createExploreEngine(options) {
     };
   });
   const rig = createRig({ camera, path, stops: rigStops, finalePoint: new Vector3(0, 20, END_PLAZA.z) });
+  const tour = createTour(rigStops.map((stop) => stop.s), path.length);
 
   // --- Glow: the scene is drawn into a buffer, bright parts are blurred over it ---
   host.appendChild(canvas);
   let composer = null;
   let bloom = null;
+  let grain = null;
   if (settings.bloom) {
     composer = new EffectComposer(renderer, new WebGLRenderTarget(2, 2, { type: HalfFloatType, samples: settings.samples }));
     composer.addPass(new RenderPass(scene, camera));
@@ -235,6 +316,10 @@ export async function createExploreEngine(options) {
     bloom.highPassUniforms.smoothWidth.value = 0.35;
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
+    if (settings.detail) {
+      grain = new ShaderPass(GRAIN);
+      composer.addPass(grain);
+    }
   }
 
   const dropGlow = () => {
@@ -243,12 +328,21 @@ export async function createExploreEngine(options) {
     composer.dispose();
     composer = null;
     bloom = null;
+    grain = null;
   };
 
-  // Steps taken, in order, when the frame rate stays low: fewer pixels, then no
-  // glow, then fewer pixels again.
+  const dropMirror = () => {
+    if (!mirror) return;
+    ground.material.uniforms.uMirrorOn.value = 0;
+    mirror.dispose();
+    mirror = null;
+  };
+
+  // Steps taken, in order, when the frame rate stays low: no mirrored road
+  // (where there is one), fewer pixels, then no glow, then fewer pixels again.
   let pixelScale = 1;
   const savings = [
+    ...(mirror ? [dropMirror] : []),
     () => {
       pixelScale = 0.8;
     },
@@ -275,6 +369,7 @@ export async function createExploreEngine(options) {
     // A taller field of view on phones held upright, where the picture is narrow.
     camera.fov = camera.aspect < 1 ? 72 : 60;
     camera.updateProjectionMatrix();
+    mirror?.setSize(width * ratio, height * ratio);
     shared.uPointScale.value = (height * ratio) / (2 * Math.tan((camera.fov * Math.PI) / 360));
     sky.setPixelRatio(ratio);
   };
@@ -413,9 +508,13 @@ export async function createExploreEngine(options) {
   const projected = new Vector3();
   const frameInfo = { progress: 0, guideX: 0, guideY: 0, guideVisible: false, speed: 0, focus: 0 };
 
-  let position = tourPosition(readProgress(), count);
-  let lastS = 0;
+  // Metres travelled along the route, the same place counted in legs (see
+  // createTour), and the speed along the route in metres a second.
+  let travelled = tour.distanceAt(readProgress());
+  let position = tour.positionAt(travelled);
   let speed = 0;
+  // In development: a camera placed by hand, for looking at any corner of the city.
+  let debugView = null;
   let time = 0;
   let lastNow = performance.now();
   let stageKey = "";
@@ -435,22 +534,34 @@ export async function createExploreEngine(options) {
 
     // --- Where the visitor is on the tour (held still while a detail panel is open) ---
     const progressNow = frozen ?? readProgress();
-    const target = tourPosition(progressNow, count);
-    const moving = Math.abs(target - position) > 0.002;
+    const target = tour.distanceAt(progressNow);
+    const moving = Math.abs(target - travelled) > MOVING_GAP;
     const previousPosition = position;
-    position += (target - position) * (1 - Math.exp(-dt * FOLLOW));
-    if (Math.abs(target - position) < 0.0003) position = target;
+    // A critically damped spring toward the scroll position, stepped implicitly so it is stable at any frame rate.
+    const stiffness = FOLLOW * FOLLOW * dt;
+    const scale = 1 / (1 + 2 * dt * FOLLOW + stiffness * dt);
+    const pull = stiffness * (target - travelled);
+    travelled = (travelled * (1 + 2 * dt * FOLLOW) + dt * speed + stiffness * dt * target) * scale;
+    speed = (speed + pull) * scale;
+    if (Math.abs(target - travelled) < 0.004 && Math.abs(speed) < 0.02) {
+      travelled = target;
+      speed = 0;
+    }
+    position = tour.positionAt(travelled);
 
     pointer.easedX += (pointer.x - pointer.easedX) * (1 - Math.exp(-dt * 3));
     pointer.easedY += (pointer.y - pointer.easedY) * (1 - Math.exp(-dt * 3));
-    const view = rig.update(dt, position, { moving, pointerX: pointer.easedX, pointerY: pointer.easedY });
-    speed += ((view.s - lastS) / Math.max(dt, 0.001) - speed) * (1 - Math.exp(-dt * 8));
-    lastS = view.s;
+    const view = rig.update(dt, travelled, { moving, pointerX: pointer.easedX, pointerY: pointer.easedY });
+    if (debugView) {
+      camera.position.copy(debugView.position);
+      camera.lookAt(debugView.target);
+    }
 
     // --- Everything that moves ---
     sky.update(time, camera);
     places.update(time, camera.position.x, camera.position.z);
     traffic.update(time);
+    air.update(camera);
     nature.update?.(time);
     const stop = stops[view.stopIndex];
     const nextStop = stops[clamp(Math.floor(position), 0, Math.max(0, count - 1))];
@@ -459,11 +570,14 @@ export async function createExploreEngine(options) {
     guide.update({ time, dt, camera, focus: view.focus, side: view.finale > 0.5 ? -1 : side, speed, speaking: time < speakUntil, detail: view.detail });
     watchBehaviour(dt, moving, previousPosition, view);
 
+    mirror?.render(renderer, scene, camera, [ground]);
+    // The grain shimmers like film; it holds still for visitors who prefer less motion.
+    if (grain && !calm) grain.uniforms.uSeed.value = time % 1;
     if (composer) composer.render(dt);
     else renderer.render(scene, camera);
 
     // --- Tell the page what changed ---
-    const stage = tourStage(position, count);
+    const stage = tour.stageAt(travelled);
     const key = `${stage.kind}:${stage.index}`;
     if (key !== stageKey) {
       stageKey = key;
@@ -578,6 +692,10 @@ export async function createExploreEngine(options) {
       window.removeEventListener("pointercancel", onPointerCancel);
       disposeScene(scene);
       dropGlow();
+      lights.dispose();
+      skyPicture.dispose();
+      mirror?.dispose();
+      shared.uShopNames.value.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       canvas.remove();
@@ -592,7 +710,30 @@ export async function createExploreEngine(options) {
       advance(seconds, step = 1 / 30) {
         for (let t = 0; t < seconds; t += step) tick(step);
       },
+      /** Scrolls the page to `metres` along the route. */
+      driveTo(metres) {
+        const range = document.documentElement.scrollHeight - window.innerHeight;
+        window.scrollTo({ top: tour.progressAt(metres) * range, behavior: "instant" });
+      },
+      /** Puts the camera at `from` looking at `to` ([x, y, z] each); call with nothing to give it back to the tour. */
+      view(from, to) {
+        debugView = from && to ? { position: new Vector3(...from), target: new Vector3(...to) } : null;
+      },
+      /** What one frame draws: draw calls and triangles, with the mirrored road and the glow. */
+      measure() {
+        renderer.info.autoReset = false;
+        renderer.info.reset();
+        tick(1 / 60);
+        const { calls, triangles, points } = renderer.info.render;
+        renderer.info.autoReset = true;
+        return { calls, triangles, points, programs: renderer.info.programs.length, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures };
+      },
       renderer,
+      scene,
+      camera,
+      path,
+      tour,
+      sites,
       engine: api,
     };
   }

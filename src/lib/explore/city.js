@@ -98,6 +98,16 @@ export function grandnessAt(z) {
 export const junctionById = (id) => JUNCTIONS.find((junction) => junction.id === id);
 export const sideStreetById = (id) => SIDE_STREETS.find((street) => street.id === id);
 
+/**
+ * The roundabout at the end of a side street, as radii from its centre: the
+ * planted `island` in the middle, the `outer` edge of the road that the route
+ * drives round it, and the paved `square` about it.
+ */
+export function roundaboutOf(street) {
+  const half = street.end === "square" ? 6 : 4.5;
+  return { island: street.loop - half, outer: street.loop + half, square: street.square };
+}
+
 // --- Places ------------------------------------------------------------------
 
 // Where project buildings stand. "before" places hold projects older than the
@@ -339,12 +349,13 @@ export function planRoute(occupied = new Set()) {
 
 /**
  * Plans the city for the published content: which post stands where, the stops
- * in the order the route reaches them, the construction lots and the street
- * signs. Plain data, sent from the server to the browser.
+ * in the order the route reaches them, the construction lots, the street signs
+ * and where the stops lie on the route. Plain data, sent from the server to the
+ * browser.
  */
 export function buildCity({ posts = [], menu = [], skills = [], lang = "en" } = {}) {
   const assigned = assignPlaces(posts);
-  const { order } = planRoute(new Set(assigned.keys()));
+  const { path, order } = planRoute(new Set(assigned.keys()));
   const progressBySlug = new Map(menu.filter((item) => item.slug).map((item) => [item.slug, item.progress]));
 
   const stops = order.map((placeId) => {
@@ -390,5 +401,9 @@ export function buildCity({ posts = [], menu = [], skills = [], lang = "en" } = 
     .filter((item) => item.name)
     .slice(0, LOTS.length);
 
-  return { stops, upcoming, signs: signWords(skills) };
+  // How far along the route each stop lies, and the route's whole length, in
+  // metres: the page is made that long to scroll (see createTour in plan.js).
+  const route = { stops: order.map((placeId) => path.marks[placeId]), length: path.length };
+
+  return { stops, upcoming, signs: signWords(skills), route };
 }

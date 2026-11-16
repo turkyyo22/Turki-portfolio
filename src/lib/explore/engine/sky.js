@@ -1,36 +1,194 @@
 import {
   AdditiveBlending,
   BackSide,
+  BoxGeometry,
   Color,
   DoubleSide,
+  InstancedBufferAttribute,
+  InstancedMesh,
   RingGeometry,
   BufferAttribute,
   BufferGeometry,
-  CylinderGeometry,
   Matrix4,
   Mesh,
   MeshBasicMaterial,
   PlaneGeometry,
   Points,
-  RepeatWrapping,
+  Quaternion,
   ShaderMaterial,
   SphereGeometry,
   Vector3,
 } from "three";
 
-import { NOISE, OUTPUT } from "./shaders";
+import { END_PLAZA, MAIN_STREET } from "@/lib/explore/city";
+
+import { FOG, NOISE, OUTPUT } from "./shaders";
 import { canvasTexture, makeCanvas } from "./signs";
 
 const STAR_DISTANCE = 900;
-const SKYLINE_RADIUS = 640;
-const SKYLINE_HEIGHT = 150;
+// The far city stands in a band this far from the main street, all round it.
+const FAR_FROM = 215;
+const FAR_TO = 780;
+const FAR_CELL = 36;
+
+/**
+ * The far city: hundreds of towers standing all round, beyond the streets the
+ * tour drives. They are real shapes, so they slide past one another as the
+ * camera moves, with lit windows, strips of light and warning lamps, and they
+ * fade into the haze of the horizon instead of vanishing in it.
+ */
+function createFarCity({ scene, shared, palette, random }) {
+  const towers = [];
+  // How far a point lies from the main street, measured to the nearest point of its centre line.
+  const fromStreet = (x, z) => Math.hypot(x, z - Math.min(MAIN_STREET.fromZ - 30, Math.max(END_PLAZA.z, z)));
+  const tones = [palette.accent, palette.pink, palette.amber, palette.violet, palette.mint, palette.blue];
+  const block = (x, y, z, w, h, d, turn, seed, lit, tone, kind = 0) => towers.push({ x, y, z, w, h, d, turn, seed, lit, tone, kind });
+
+  for (let x = -FAR_TO; x <= FAR_TO; x += FAR_CELL) {
+    for (let z = END_PLAZA.z - FAR_TO; z <= MAIN_STREET.fromZ + FAR_TO; z += FAR_CELL) {
+      const px = x + random.range(-0.4, 0.4) * FAR_CELL;
+      const pz = z + random.range(-0.4, 0.4) * FAR_CELL;
+      const away = fromStreet(px, pz);
+      if (away < FAR_FROM || away > FAR_TO) continue;
+      // Thick near the city, thinning toward the horizon.
+      const share = (away - FAR_FROM) / (FAR_TO - FAR_FROM);
+      if (!random.chance(0.86 - 0.5 * share)) continue;
+      // Tallest beyond the far end of the street and abreast of the centre.
+      const ahead = pz < END_PLAZA.z ? 1 : 0;
+      const grand = Math.max(ahead, Math.exp(-(((pz + 340) / 260) ** 2)));
+      const giant = random.chance(0.05 + 0.07 * grand);
+      const height = giant ? random.range(190, 330) : random.range(34, 80) + grand * random.range(10, 110);
+      const width = random.range(16, 30) * (giant ? 1.25 : 1);
+      const depth = random.range(16, 30) * (giant ? 1.25 : 1);
+      const turn = random.chance(0.75) ? 0 : random.range(0, Math.PI / 2);
+      const seed = random.range(0, 90);
+      const lit = random.range(0.14, 0.42);
+      const tone = random.pick(tones);
+      // One block, or two or three stepped back as it rises, and sometimes a mast with a lamp.
+      const steps = height > 110 ? random.int(2, 3) : random.chance(0.4) ? 2 : 1;
+      let base = 0;
+      let scale = 1;
+      for (let step = 0; step < steps; step += 1) {
+        const part = (height / steps) * (step === 0 ? 1.25 : 1) * (steps === 1 ? 0.8 : 0.87);
+        block(px, base, pz, width * scale, part, depth * scale, turn, seed + step * 7, lit, tone);
+        base += part;
+        scale *= random.range(0.62, 0.8);
+      }
+      if (base > 90 && random.chance(0.75)) {
+        const mast = random.range(14, 44);
+        block(px, base, pz, 1.6, mast, 1.6, turn, seed, 0, tone);
+        block(px, base + mast, pz, 3.2, 3.2, 3.2, turn, seed, 1, palette.red, 1);
+      }
+    }
+  }
+
+  const count = towers.length;
+  const geometry = new BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+  const look = new Float32Array(count * 3);
+  const tone = new Float32Array(count * 3);
+  const material = new ShaderMaterial({
+    uniforms: { ...shared, uGlow: { value: palette.glowViolet } },
+    vertexShader: /* glsl */ `
+      attribute vec3 aLook;    // seed, share of lit windows, kind (0 a tower, 1 a warning lamp)
+      attribute vec3 aTone;
+      flat varying vec3 vLook;
+      flat varying vec3 vTone;
+      flat varying vec3 vSize;
+      varying vec3 vLocal;
+      varying vec3 vNormalLocal;
+      varying vec3 vWorld;
+      varying float vDepth;
+      void main() {
+        vSize = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
+        vLook = aLook;
+        vTone = aTone;
+        vLocal = position;
+        vNormalLocal = normal;
+        vec4 world = modelMatrix * instanceMatrix * vec4(position, 1.0);
+        vWorld = world.xyz;
+        vec4 mv = viewMatrix * world;
+        vDepth = -mv.z;
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform float uTime;
+      uniform vec3 uGlow;
+      flat varying vec3 vLook;
+      flat varying vec3 vTone;
+      flat varying vec3 vSize;
+      varying vec3 vLocal;
+      varying vec3 vNormalLocal;
+      varying vec3 vWorld;
+      varying float vDepth;
+      ${FOG}
+      ${NOISE}
+      void main() {
+        float seed = vLook.x;
+        // The haze thickens with distance, but never swallows a tower whole.
+        float haze = min(fogAmount(vDepth * 0.62), 0.9);
+        vec3 mist = mix(uFogLow, uFogColor, smoothstep(0.0, 110.0, vWorld.y));
+        if (vLook.z > 0.5) {
+          // A warning lamp on a mast, flashing slowly.
+          float flash = smoothstep(0.35, 0.65, 0.5 + 0.5 * sin(uTime * 1.7 + seed));
+          gl_FragColor = vec4(vTone * (0.4 + 4.0 * flash) * (1.0 - haze * 0.75), 1.0);
+          ${OUTPUT}
+          return;
+        }
+        // The wall: dark, lighter low down where the city's glow reaches it.
+        vec3 color = vec3(0.012, 0.014, 0.03) + uGlow * 0.05 * exp(-vWorld.y * 0.02);
+        bool side = abs(vNormalLocal.y) < 0.5;
+        if (side) {
+          // Windows, floor by floor: some lit warm, some cool, a few in colour.
+          float across = (abs(vNormalLocal.x) > 0.5 ? vLocal.z * vSize.z : vLocal.x * vSize.x) + seed;
+          vec2 m = vec2(across / 2.6, vLocal.y * vSize.y / 3.6);
+          vec2 id = floor(m);
+          vec2 cell = fract(m);
+          float pixel = max(fwidth(m.x), fwidth(m.y));
+          float sharp = clamp(1.4 - pixel * 1.6, 0.0, 1.0);
+          float pick = hash21(id + seed * 3.1);
+          // Whole floors go dark together, as offices do.
+          float floorOn = step(0.3, hash21(vec2(id.y, seed)));
+          float on = step(pick, vLook.y) * floorOn;
+          float pane = boxMask(cell, vec2(0.14, 0.2), vec2(0.86, 0.8), vec2(pixel));
+          vec3 lamp = pick < vLook.y * 0.62 ? vec3(1.0, 0.74, 0.44) : (pick < vLook.y * 0.9 ? vec3(0.7, 0.85, 1.0) : vTone * 1.3);
+          color += lamp * mix(vLook.y * 0.3 * floorOn, on * pane, sharp) * 0.9;
+          // A strip of light up the corners of some, and a line under the crown.
+          float flair = hash21(vec2(seed, 9.0));
+          float width = abs(vNormalLocal.x) > 0.5 ? vSize.z : vSize.x;
+          float edge = (0.5 - abs(abs(vNormalLocal.x) > 0.5 ? vLocal.z : vLocal.x)) * width;
+          if (flair > 0.55) color += vTone * (1.0 - smoothstep(0.5, 1.4, edge)) * 0.9;
+          if (fract(flair * 7.0) > 0.5) color += vTone * (1.0 - smoothstep(0.6, 1.6, abs((1.0 - vLocal.y) * vSize.y - 3.0))) * 0.8;
+        }
+        gl_FragColor = vec4(mix(color, mist, haze), 1.0);
+        ${OUTPUT}
+      }
+    `,
+  });
+  const mesh = new InstancedMesh(geometry, material, count);
+  const matrix = new Matrix4();
+  const rotation = new Quaternion();
+  const position = new Vector3();
+  const scale = new Vector3();
+  const up = new Vector3(0, 1, 0);
+  towers.forEach((tower, index) => {
+    rotation.setFromAxisAngle(up, tower.turn);
+    mesh.setMatrixAt(index, matrix.compose(position.set(tower.x, tower.y, tower.z), rotation, scale.set(tower.w, tower.h, tower.d)));
+    look.set([tower.seed, tower.lit, tower.kind], index * 3);
+    tone.set([tower.tone.r, tower.tone.g, tower.tone.b], index * 3);
+  });
+  geometry.setAttribute("aLook", new InstancedBufferAttribute(look, 3));
+  geometry.setAttribute("aTone", new InstancedBufferAttribute(tone, 3));
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+}
 
 /**
  * Everything above and around the city: the night sky with its glow over the
  * horizon, neon clouds lit from below, a faint aurora, twinkling stars, a
  * crescent moon and a smaller second one, a ringed planet low over the far end
- * of the street, the odd shooting star, and a ring of far towers. All of it
- * travels with the camera, so it never gets closer.
+ * of the street, the odd shooting star, and the far city all round. The sky
+ * travels with the camera, so it never gets closer; the far city stands still.
  */
 export function createSky({ scene, shared, palette, random, settings }) {
   // --- The dome ---
@@ -204,41 +362,8 @@ export function createSky({ scene, shared, palette, random, settings }) {
   const moonDirection = new Vector3(-0.3, 0.36, -0.88).normalize();
   scene.add(moon);
 
-  // --- Far towers, as a ring of silhouettes around the horizon ---
-  const [lineCanvas, lineCtx] = makeCanvas(2048, 256);
-  const silhouette = `#${palette.fogLow.clone().multiplyScalar(0.7).getHexString()}`;
-  const windowTints = ["255, 205, 140", "190, 225, 255", "255, 120, 200", "120, 240, 255"];
-  let cursor = 0;
-  while (cursor < 2048) {
-    const width = Math.round(random.range(14, 44));
-    const u = (cursor + width / 2) / 2048;
-    // The texture's middle faces down the street, where the towers are tallest.
-    const centre = Math.max(0, 1 - Math.abs(u - 0.5) * 2.4);
-    const height = Math.round(26 + random.range(0, 46) + centre ** 1.5 * random.range(50, 150));
-    lineCtx.fillStyle = silhouette;
-    lineCtx.fillRect(cursor, 256 - height, width + 1, height);
-    for (let wy = 256 - height + 4; wy < 250; wy += 5) {
-      for (let wx = cursor + 3; wx < cursor + width - 3; wx += 4) {
-        if (random.chance(0.1 + 0.16 * centre)) {
-          lineCtx.fillStyle = `rgba(${random.pick(windowTints)}, ${random.range(0.25, 0.6).toFixed(2)})`;
-          lineCtx.fillRect(wx, wy, 2, 2);
-        }
-      }
-    }
-    if (height > 120 && random.chance(0.6)) {
-      lineCtx.fillStyle = "rgba(255, 70, 90, 0.9)";
-      lineCtx.fillRect(cursor + Math.round(width / 2), 256 - height - 4, 2, 2);
-    }
-    cursor += width;
-  }
-  const lineTexture = canvasTexture(lineCanvas);
-  lineTexture.wrapS = RepeatWrapping;
-  const skyline = new Mesh(
-    new CylinderGeometry(SKYLINE_RADIUS, SKYLINE_RADIUS, SKYLINE_HEIGHT, 72, 1, true),
-    new MeshBasicMaterial({ map: lineTexture, alphaTest: 0.5, side: BackSide, fog: false })
-  );
-  skyline.frustumCulled = false;
-  scene.add(skyline);
+  // --- The far city, all round ---
+  createFarCity({ scene, shared, palette, random });
 
   // --- A ringed planet low over the far end of the street, lit from the side of the moon ---
   const planetDirection = new Vector3(0.32, 0.2, -1).normalize();
@@ -414,7 +539,6 @@ export function createSky({ scene, shared, palette, random, settings }) {
       planet.position.copy(camera.position).addScaledVector(planetDirection, planetDistance);
       planet.rotation.y = time * 0.004;
       ring.position.copy(planet.position);
-      skyline.position.set(camera.position.x, SKYLINE_HEIGHT / 2 - 8, camera.position.z);
       updateStreak(time, camera);
     },
   };

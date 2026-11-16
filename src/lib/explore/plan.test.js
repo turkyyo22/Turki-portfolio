@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { normalizePost } from "@/lib/content/normalize";
-import { legCount, progressOfStop, routeDistance, signWords, stopKind, stopTheme, tourPosition, tourStage } from "./plan";
+import { SHOP_NAMES, createTour, signWords, stopKind, stopTheme } from "./plan";
 
 const post = (slug, title, extra = {}) => normalizePost({ id: slug, slug, en: { title }, ...extra });
 
@@ -38,57 +38,94 @@ describe("signWords", () => {
   });
 });
 
-describe("tourPosition", () => {
-  it("starts at 0, ends at the last leg, and reaches each stop at its own progress", () => {
-    expect(tourPosition(0, 6)).toBe(0);
-    expect(tourPosition(1, 6)).toBeCloseTo(7, 10);
-    for (let index = 0; index < 6; index += 1) {
-      expect(tourPosition(progressOfStop(index, 6), 6)).toBeCloseTo(index + 1, 10);
-    }
-    expect(progressOfStop(6, 6)).toBe(1);
+describe("SHOP_NAMES", () => {
+  it("names the shops in both languages, turn and turn about, enough to fill the texture", () => {
+    expect(SHOP_NAMES).toHaveLength(32);
+    expect(new Set(SHOP_NAMES).size).toBe(32);
+    SHOP_NAMES.forEach((name, index) => {
+      expect(/[؀-ۿ]/.test(name)).toBe(index % 2 === 1);
+      expect(name.length).toBeLessThanOrEqual(10);
+    });
+  });
+});
+
+describe("createTour", () => {
+  // Three stops on a 600 m route, the last two close together.
+  const tour = createTour([100, 420, 470], 600);
+
+  it("drives from the start to the end, reaching each stop at its own scroll progress", () => {
+    expect(tour.count).toBe(3);
+    expect(tour.distanceAt(0)).toBe(0);
+    expect(tour.distanceAt(1)).toBeCloseTo(600, 6);
+    [100, 420, 470].forEach((distance, index) => {
+      expect(tour.distanceAt(tour.progressOfStop(index))).toBeCloseTo(distance, 6);
+    });
+    expect(tour.progressOfStop(-1)).toBe(0);
+    expect(tour.progressOfStop(3)).toBe(1);
+    for (const distance of [0, 37.5, 100, 333.3, 599, 600]) expect(tour.distanceAt(tour.progressAt(distance))).toBeCloseTo(distance, 6);
   });
 
-  it("never goes backwards and stays within the tour", () => {
+  it("never goes backwards and stays within the route", () => {
     let previous = -1;
-    for (let step = 0; step <= 400; step += 1) {
-      const position = tourPosition(step / 400, 5);
-      expect(position).toBeGreaterThanOrEqual(previous);
-      previous = position;
+    for (let step = 0; step <= 500; step += 1) {
+      const distance = tour.distanceAt(step / 500);
+      expect(distance).toBeGreaterThanOrEqual(previous);
+      previous = distance;
     }
-    expect(tourPosition(-3, 5)).toBe(0);
-    expect(tourPosition(9, 5)).toBeCloseTo(legCount(5), 10);
-    expect(tourPosition("nonsense", 5)).toBe(0);
+    expect(tour.distanceAt(-3)).toBe(0);
+    expect(tour.distanceAt(9)).toBeCloseTo(600, 6);
+    expect(tour.distanceAt("nonsense")).toBe(0);
   });
 
-  it("moves slower near a stop than halfway between two stops", () => {
-    const speedAt = (progress) => (tourPosition(progress + 0.0005, 4) - tourPosition(progress - 0.0005, 4)) / 0.001;
-    expect(speedAt(progressOfStop(1, 4))).toBeLessThan(speedAt(progressOfStop(1, 4) + 0.1) * 0.4);
+  it("covers the same ground for the same scroll while cruising, and less near a stop", () => {
+    const metresFor = (distance) => {
+      const progress = tour.progressAt(distance);
+      const scroll = 1 / tour.scrollLength;
+      return tour.distanceAt(progress + scroll / 2) - tour.distanceAt(progress - scroll / 2);
+    };
+    // A metre of scrolling is a metre of road far from any stop…
+    expect(metresFor(250)).toBeCloseTo(1, 2);
+    expect(metresFor(560)).toBeCloseTo(1, 2);
+    // …and about a third of one at a stop.
+    expect(metresFor(100)).toBeLessThan(0.4);
+    expect(metresFor(100)).toBeGreaterThan(0.25);
+    expect(tour.scrollLength).toBeGreaterThan(tour.length);
   });
-});
 
-describe("tourStage", () => {
-  it("names the start, the stops, the flight between them and the end", () => {
-    expect(tourStage(0, 4)).toEqual({ kind: "intro", index: 0 });
-    expect(tourStage(0.5, 4)).toEqual({ kind: "cruise", index: 0 });
-    expect(tourStage(1.1, 4)).toEqual({ kind: "stop", index: 0 });
-    expect(tourStage(2.5, 4)).toEqual({ kind: "cruise", index: 2 });
-    expect(tourStage(3.9, 4)).toEqual({ kind: "stop", index: 3 });
-    expect(tourStage(4.5, 4)).toEqual({ kind: "cruise", index: 4 });
-    expect(tourStage(4.9, 4)).toEqual({ kind: "finale", index: 4 });
-    expect(tourStage(0.9, 0)).toEqual({ kind: "finale", index: 0 });
+  it("counts the same place in legs", () => {
+    expect(tour.positionAt(0)).toBe(0);
+    expect(tour.positionAt(50)).toBeCloseTo(0.5, 10);
+    expect(tour.positionAt(100)).toBeCloseTo(1, 10);
+    expect(tour.positionAt(445)).toBeCloseTo(2.5, 10);
+    expect(tour.positionAt(600)).toBeCloseTo(4, 10);
+    expect(tour.positionAt(900)).toBeCloseTo(4, 10);
   });
-});
 
-describe("routeDistance", () => {
-  it("maps legs onto the stretches of route between stops", () => {
-    const stops = [100, 250, 260];
-    expect(routeDistance(0, stops, 400)).toBe(0);
-    expect(routeDistance(1, stops, 400)).toBe(100);
-    expect(routeDistance(1.5, stops, 400)).toBe(175);
-    expect(routeDistance(3, stops, 400)).toBe(260);
-    expect(routeDistance(4, stops, 400)).toBe(400);
-    expect(routeDistance(9, stops, 400)).toBe(400);
-    expect(routeDistance(-1, stops, 400)).toBe(0);
-    expect(routeDistance(0.5, [], 80)).toBe(40);
+  it("names the start, the stops, the drive between them and the end", () => {
+    expect(tour.stageAt(0)).toEqual({ kind: "intro", index: 0 });
+    expect(tour.stageAt(50)).toEqual({ kind: "cruise", index: 0 });
+    expect(tour.stageAt(85)).toEqual({ kind: "stop", index: 0 });
+    expect(tour.stageAt(125)).toEqual({ kind: "stop", index: 0 });
+    expect(tour.stageAt(250)).toEqual({ kind: "cruise", index: 1 });
+    // Between two close stops, the nearer one is in view.
+    expect(tour.stageAt(440)).toEqual({ kind: "stop", index: 1 });
+    expect(tour.stageAt(450)).toEqual({ kind: "stop", index: 2 });
+    expect(tour.stageAt(530)).toEqual({ kind: "cruise", index: 3 });
+    expect(tour.stageAt(580)).toEqual({ kind: "finale", index: 3 });
+    expect(tour.nearestStop(430)).toEqual({ index: 1, away: 10 });
+  });
+
+  it("copes with a route that has no stops, and with no route", () => {
+    const straight = createTour([], 300);
+    expect(straight.distanceAt(0.5)).toBeCloseTo(150, 6);
+    expect(straight.scrollLength).toBeCloseTo(300, 6);
+    expect(straight.stageAt(5)).toEqual({ kind: "intro", index: 0 });
+    expect(straight.stageAt(150)).toEqual({ kind: "cruise", index: 0 });
+    expect(straight.stageAt(290)).toEqual({ kind: "finale", index: 0 });
+    expect(straight.nearestStop(10).index).toBe(-1);
+    const none = createTour();
+    expect(none.distanceAt(0.5)).toBe(0);
+    expect(none.progressAt(10)).toBe(0);
+    expect(none.progressOfStop(0)).toBe(1);
   });
 });

@@ -1,4 +1,4 @@
-import { PART, STYLE, WINDOWS } from "./kit";
+import { PART, STYLE, WINDOWS, shopsOf } from "./kit";
 
 // Ordinary buildings, assembled from the kit (kit.js) by district:
 //   old       small masonry buildings with shops, awnings, balconies, fire escapes and roof tanks
@@ -29,6 +29,20 @@ export function framePoint(spec, x, y, z) {
   const cos = Math.cos(spec.turn);
   const sin = Math.sin(spec.turn);
   return { x: spec.x + x * cos + z * sin, y, z: spec.z - x * sin + z * cos };
+}
+
+/**
+ * The light a row of shops throws on the pavement in front of it: each open
+ * shop in the colour of its own sign (see shopsOf in kit.js). `width` is the
+ * shop wall's and `front` how far its face lies from the building's centre.
+ */
+export function shopLights(lights, spec, palette, seed, width, front) {
+  if (!lights) return;
+  for (const shop of shopsOf(seed, width)) {
+    if (shop.shut) continue;
+    const at = framePoint(spec, shop.x, 0, front + 1.7);
+    lights.add({ x: at.x, z: at.z, radius: 6.2, color: palette.warm.clone().lerp(palette.neon[shop.neon], 0.6), strength: 0.62 });
+  }
 }
 
 // --- Pieces shared by the recipes ---------------------------------------------
@@ -131,7 +145,7 @@ export function crane(add, { x, z, height, turn = 0, color }) {
 
 // --- The recipes --------------------------------------------------------------
 
-function oldTown(add, spec, random, palette, detail) {
+function oldTown(add, spec, random, palette, detail, glows, lights) {
   const { width: w, depth: d } = spec;
   const floors = spec.floors;
   const height = SHOP_FLOOR + (floors - 1) * FLOOR;
@@ -139,6 +153,7 @@ function oldTown(add, spec, random, palette, detail) {
   const stone = pick(random, palette.stone);
   const seed = random() * 90;
   add(PART.box, { w, h: height, d, style: spec.shops ? STYLE.shop : STYLE.wall, seed, lit: 0.3 + random() * 0.22, pattern: WINDOWS.old, color: wall });
+  if (spec.shops) shopLights(lights, spec, palette, seed, w, d / 2);
   add(PART.box, { y: SHOP_FLOOR - 0.16, w: w + 0.3, h: 0.32, d: d + 0.3, style: STYLE.plain, color: stone });
   add(PART.box, { y: height - 0.05, w: w + 0.7, h: 0.5, d: d + 0.7, style: STYLE.plain, color: stone });
   if (detail) {
@@ -182,7 +197,7 @@ function oldTown(add, spec, random, palette, detail) {
   return { height };
 }
 
-function midtown(add, spec, random, palette, detail) {
+function midtown(add, spec, random, palette, detail, glows, lights) {
   const { width: w, depth: d } = spec;
   const floors = spec.floors;
   const homes = random() < 0.45;
@@ -196,6 +211,7 @@ function midtown(add, spec, random, palette, detail) {
   const height = SHOP_FLOOR + (floors - 1) * FLOOR;
 
   add(PART.box, { w, h: lowerHeight, d, style: spec.shops ? STYLE.shop : STYLE.wall, seed, lit, pattern, color: wall });
+  if (spec.shops) shopLights(lights, spec, palette, seed, w, d / 2);
   add(PART.box, { y: SHOP_FLOOR - 0.12, w: w + 0.24, h: 0.26, d: d + 0.24, style: STYLE.plain, color: trim });
   if (detail) {
     for (let floor = 4; floor < setbackAt; floor += 3) {
@@ -239,7 +255,7 @@ function midtown(add, spec, random, palette, detail) {
   return { height: roofY };
 }
 
-function centreTower(add, spec, random, palette, detail, glows) {
+function centreTower(add, spec, random, palette, detail, glows, lights) {
   const { width: w, depth: d } = spec;
   const podiumH = SHOP_FLOOR + TOWER_FLOOR * 2;
   const wall = pick(random, palette.walls.centre);
@@ -249,6 +265,7 @@ function centreTower(add, spec, random, palette, detail, glows) {
   const glassTint = pick(random, [palette.blue, palette.accent, palette.violet, palette.cool]).clone().multiplyScalar(0.55);
 
   add(PART.box, { w, h: podiumH, d, style: STYLE.shop, seed, lit: lit + 0.1, pattern: WINDOWS.office, color: wall });
+  shopLights(lights, spec, palette, seed, w, d / 2);
   add(PART.box, { y: podiumH, w: w + 0.4, h: 0.5, d: d + 0.4, style: STYLE.plain, color: palette.stone[1] });
   // A canopy over the entrance, lit from underneath.
   add(PART.box, { y: 4.1, z: d / 2 + 1.2, w: Math.min(w * 0.5, 8), h: 0.32, d: 2.4, style: STYLE.metal, color: palette.darkSteel });
@@ -291,7 +308,7 @@ function centreTower(add, spec, random, palette, detail, glows) {
   return { height: y };
 }
 
-function newDistrict(add, spec, random, palette, detail, glows) {
+function newDistrict(add, spec, random, palette, detail, glows, lights) {
   const { width: w, depth: d } = spec;
   const roll = random();
   const seed = random() * 90;
@@ -303,6 +320,7 @@ function newDistrict(add, spec, random, palette, detail, glows) {
   // A two-storey podium of shops in pale panels.
   const podiumH = SHOP_FLOOR + FLOOR;
   add(PART.box, { w, h: podiumH, d, style: STYLE.shop, seed, lit: lit + 0.1, pattern: WINDOWS.office, color: light.clone().multiplyScalar(0.7) });
+  shopLights(lights, spec, palette, seed, w, d / 2);
   let y = podiumH;
 
   if (roll < 0.4) {
@@ -380,9 +398,9 @@ const RECIPES = { old: oldTown, mid: midtown, centre: centreTower, new: newDistr
  * (sin turn, cos turn)), width (across the front), depth, floors, district,
  * shops (whether its ground floor has shops). Returns its height.
  */
-export function raiseBuilding(kit, spec, { random, palette, detail, glows }) {
+export function raiseBuilding(kit, spec, { random, palette, detail, glows, lights }) {
   const add = inFrame(kit, spec);
-  return (RECIPES[spec.district] ?? midtown)(add, spec, random, palette, detail, glows);
+  return (RECIPES[spec.district] ?? midtown)(add, spec, random, palette, detail, glows, lights);
 }
 
 /**

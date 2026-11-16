@@ -1,7 +1,6 @@
 import { Vector3 } from "three";
 
 import { grandnessAt } from "@/lib/explore/city";
-import { routeDistance } from "@/lib/explore/plan";
 
 import { clamp, lerp, smoothstep } from "./random";
 
@@ -15,6 +14,14 @@ const LOOK_DOWN = 0.2;
 const ORBIT = 0.95;
 // How quickly a turned view eases back once the visitor scrolls on.
 const RECENTRE_RATE = 1.6;
+// The camera frames a stop's building fully within FOCUS_NEAR metres of the stop
+// (along the route) and has let go of it by FOCUS_FAR.
+const FOCUS_NEAR = 13;
+const FOCUS_FAR = 46;
+// Over the last stretch of the route (from this many metres before its end to
+// this many) the camera rises to look across the plaza.
+const FINALE_FROM = 80;
+const FINALE_TO = 6;
 
 /**
  * The camera: it rides the route as the page scrolls, slows and frames each
@@ -83,19 +90,28 @@ export function createRig({ camera, path, stops, finalePoint }) {
     },
 
     /**
-     * Moves the camera for tour position `position` (in legs, see plan.js).
-     * `moving` is true while the visitor scrolls, which eases a turned view back.
+     * Moves the camera to `distance` metres along the route. `moving` is true
+     * while the visitor scrolls, which eases a turned view back.
      */
-    update(dt, tourPosition, { moving, pointerX = 0, pointerY = 0 }) {
-      const s = routeDistance(tourPosition, stopDistances, path.length);
+    update(dt, distance, { moving, pointerX = 0, pointerY = 0 }) {
+      const s = clamp(distance, 0, path.length);
       state.s = s;
       path.at(s, here);
-      const nearest = Math.round(tourPosition) - 1;
+      // The stop nearest along the route, and how strongly the camera frames it.
+      let nearest = -1;
+      let away = Infinity;
+      for (let index = 0; index < count; index += 1) {
+        const gap = Math.abs(s - stopDistances[index]);
+        if (gap < away) {
+          away = gap;
+          nearest = index;
+        }
+      }
       const stop = stops[nearest];
-      const focus = stop ? 1 - smoothstep(0.14, 0.46, Math.abs(tourPosition - (nearest + 1))) : 0;
+      const focus = stop ? 1 - smoothstep(FOCUS_NEAR, FOCUS_FAR, away) : 0;
       state.focus = focus;
       state.stopIndex = stop ? nearest : -1;
-      const finale = smoothstep(count + 0.35, count + 0.95, tourPosition);
+      const finale = smoothstep(path.length - FINALE_FROM, path.length - FINALE_TO, s);
       state.finale = finale;
 
       // Height rises as the city grows grander, and over the plaza at the end.

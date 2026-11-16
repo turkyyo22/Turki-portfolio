@@ -14,7 +14,7 @@ const UP = new Vector3(0, 1, 0);
  * street they face the visitor driving down it; on a side street they face the
  * main street, so they are seen on the way in.
  */
-export function createStreetSigns({ scene, shared, palette, random, fronts, words, family, decals }) {
+export function createStreetSigns({ scene, shared, palette, random, fronts, words, family, lights }) {
   const list = words.length > 0 ? words : ["OPEN", "CODE", "DATA", "24H", "LAB", "AI"];
   const { canvas, count } = drawSignAtlas({ words: list, colors: palette.neon, family });
   const texture = canvasTexture(canvas);
@@ -36,12 +36,13 @@ export function createStreetSigns({ scene, shared, palette, random, fronts, word
       x = front.x - front.side * (width / 2 + 0.2);
       z = front.z + along;
       turn = 0;
-      decals.add({ x: front.side * 8.4, z: z + 1.2, width: 3.4, length: 9, color: palette.neon[cell % palette.neon.length], strength: 0.2, streak: true, towardX: -front.side, towardZ: 0 });
+      lights.add({ x: x - front.side * 1.4, z, radius: 6.5, color: palette.neon[cell % palette.neon.length], strength: 0.8 });
     } else {
       const street = sideStreetById(front.street);
       x = front.x + along;
       z = front.z - front.side * (width / 2 + 0.2);
       turn = -street.side * (Math.PI / 2);
+      lights.add({ x, z: z - front.side * 1.4, radius: 6, color: palette.neon[cell % palette.neon.length], strength: 0.7 });
     }
     signs.push({ x, y, z, width, height, turn, cell, flicker: random.chance(front.district === "old" ? 0.45 : 0.15) ? 1 : 0, seed: random.range(0, 50) });
   }

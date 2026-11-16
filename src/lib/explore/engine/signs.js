@@ -157,6 +157,30 @@ export function drawSignAtlas({ words, colors, family }) {
   return { canvas, count };
 }
 
+export const SHOP_ATLAS = { cols: 4, rows: 8, cellWidth: 256, cellHeight: 64 };
+
+/**
+ * One texture holding the names over the shop fronts, white on black, a name
+ * to a cell. The building material lights each sign's letters through it (see
+ * facade in kit.js).
+ */
+export function drawShopNames({ names, family }) {
+  const { cols, rows, cellWidth, cellHeight } = SHOP_ATLAS;
+  const [canvas, ctx] = makeCanvas(cols * cellWidth, rows * cellHeight);
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#fff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (let index = 0; index < cols * rows; index += 1) {
+    const name = names[index % names.length];
+    const { size } = fitText(ctx, name, { maxWidth: cellWidth - 22, maxLines: 1, size: 46, minSize: 22, family, weight: 800 });
+    ctx.font = `800 ${size}px ${family}`;
+    ctx.fillText(name, (index % cols) * cellWidth + cellWidth / 2, Math.floor(index / cols) * cellHeight + cellHeight / 2 + 2);
+  }
+  return canvas;
+}
+
 /** The ring and number painted on the ground in front of a stop. Drawn on black for additive blending. */
 export function drawStopMarker({ number, color }) {
   const [canvas, ctx] = makeCanvas(512, 512);
