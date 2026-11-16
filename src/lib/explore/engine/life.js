@@ -1,25 +1,12 @@
-import {
-  AdditiveBlending,
-  BoxGeometry,
-  BufferAttribute,
-  Color,
-  CylinderGeometry,
-  DynamicDrawUsage,
-  IcosahedronGeometry,
-  InstancedBufferAttribute,
-  InstancedMesh,
-  PlaneGeometry,
-  ShaderMaterial,
-  TorusGeometry,
-} from "three";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { AdditiveBlending, Color, DynamicDrawUsage, InstancedBufferAttribute, InstancedMesh, NormalBlending, ShaderMaterial, Vector2 } from "three";
 
-import { END_PLAZA, JUNCTIONS, MAIN_STREET, RAILS, SIDE_STREETS, STREETS, facadeOf, grandnessAt, junctionById } from "@/lib/explore/city";
+import { END_PLAZA, JUNCTIONS, MAIN_STREET, RAILS, SIDE_STREETS, STREETS, facadeOf, grandnessAt, junctionById, placeById, roundaboutOf, sideStreetById } from "@/lib/explore/city";
 
-import { PART, STYLE } from "./kit";
+import { MASONRY, METAL, PART, STYLE } from "./kit";
+import { BEAM, BODY, CAR, blobGeometry, carLightGeometry, courierGeometry, droneGeometry, flyerGeometry, flyerLightGeometry, roadVehicles, shadowGeometry, trainGeometry, walkerGeometry } from "./models";
 import { bright } from "./palette";
 import { lerp } from "./random";
-import { FOG, LIGHTING, OUTPUT } from "./shaders";
+import { FOG, LIGHTING, NOISE, OUTPUT } from "./shaders";
 
 // Everything that moves through the city: cars in their lanes on the main
 // street and the side streets, parked cars, flying vehicles over the newer
@@ -56,253 +43,392 @@ function writeMatrix(array, index, x, y, z, yaw, scale) {
   array[o + 15] = 1;
 }
 
-/** Tags every vertex of `geometry` with `values` (one number each) under `name`. */
-function tag(source, name, ...values) {
-  // Every piece is merged unindexed, since some shapes come with an index and others without.
-  const geometry = source.index ? source.toNonIndexed() : source;
-  const count = geometry.attributes.position.count;
-  const data = new Float32Array(count * values.length);
-  for (let index = 0; index < count; index += 1) data.set(values, index * values.length);
-  geometry.setAttribute(name, new BufferAttribute(data, values.length));
-  return geometry;
+const VEHICLE_VERTEX = /* glsl */ `
+attribute float aPart;
+attribute vec3 aPaint;
+attribute vec3 aNeon;
+attribute float aLit;
+varying vec3 vWorld;
+varying vec3 vNormal;
+varying vec3 vLocal;
+flat varying float vPart;
+flat varying vec3 vPaint;
+flat varying vec3 vNeon;
+flat varying float vLit;
+varying float vDepth;
+void main() {
+  vLocal = position;
+  vPart = aPart;
+  vPaint = aPaint;
+  vNeon = aNeon;
+  vLit = aLit;
+  vNormal = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * normal);
+  vec4 world = modelMatrix * instanceMatrix * vec4(position, 1.0);
+  vWorld = world.xyz;
+  vec4 mv = viewMatrix * world;
+  vDepth = -mv.z;
+  gl_Position = projectionMatrix * mv;
 }
+`;
 
-// --- Vehicles --------------------------------------------------------------------
-// Vehicle parts, as the shader colours them.
-const PAINT = 0;
-const GLASS = 1;
-const WHITE_LIGHT = 2;
-const RED_LIGHT = 3;
-const NEON_LIGHT = 4;
-
-const box = (w, h, d, x, y, z, part) => tag(new BoxGeometry(w, h, d).translate(x, y, z), "aPart", part);
-
-/** A box whose top is narrower and shorter than its base, like a car's cabin. */
-function cabin(w, h, d, x, y, z, part) {
-  const geometry = new BoxGeometry(w, h, d);
-  const positions = geometry.attributes.position;
-  for (let index = 0; index < positions.count; index += 1) {
-    if (positions.getY(index) > 0) positions.setXYZ(index, positions.getX(index) * 0.8, positions.getY(index), positions.getZ(index) * 0.68);
+const VEHICLE_FRAGMENT = /* glsl */ `
+uniform float uTime;
+uniform vec3 uHead;
+uniform vec3 uTail;
+uniform vec3 uSign;
+uniform vec2 uCabin;      // where the cabin starts and ends along the vehicle
+uniform float uBelt;      // the height of the line under the windows
+uniform float uBays;      // the spacing of window pillars on a bus or a train; 0 on a car
+varying vec3 vWorld;
+varying vec3 vNormal;
+varying vec3 vLocal;
+flat varying float vPart;
+flat varying vec3 vPaint;
+flat varying vec3 vNeon;
+flat varying float vLit;
+varying float vDepth;
+${FOG}
+${NOISE}
+${LIGHTING}
+void main() {
+  int part = int(vPart + 0.5);
+  vec3 n = normalize(vNormal);
+  vec3 view = normalize(cameraPosition - vWorld);
+  vec3 color;
+  float pixel = fwidth(vLocal.z) + fwidth(vLocal.y) + 1e-4;
+  float bayPixel = fwidth(vLocal.z) / max(uBays, 0.1);
+  float linePixel = fwidth(vLocal.x) * 9.0;
+  if (part == ${CAR.head}) {
+    color = uHead * mix(0.03, 1.0, vLit);
+  } else if (part == ${CAR.tail}) {
+    color = uTail * mix(0.04, 1.0, vLit);
+  } else if (part == ${CAR.neon}) {
+    color = vNeon * vLit;
+  } else if (part == ${CAR.sign}) {
+    // A lit sign: a taxi's roof light, a bus's destination, a train's windows.
+    float bays = uBays > 0.0 ? stripes(vLocal.z / max(uBays, 0.1), 0.82, bayPixel) : 0.75 + 0.25 * stripes(vLocal.x * 9.0, 0.5, linePixel);
+    color = uSign * bays * mix(0.05, 1.0, vLit);
+  } else if (part == ${CAR.plate}) {
+    color = vec3(0.75, 0.78, 0.8) * mix(0.04, 0.5, vLit);
+  } else {
+    vec3 albedo = vPaint;
+    float roughness = 0.22;
+    float metal = 0.5;
+    vec3 inner = vec3(0.0);
+    bool flank = abs(n.x) > 0.55;
+    if (part == ${CAR.paint}) {
+      // Lacquer with a fine flake in it; the gaps round the doors, and their handles.
+      albedo *= 0.94 + 0.12 * noise21(vLocal.zy * 240.0);
+      if (flank && uBays == 0.0 && vLocal.y < uBelt - 0.02) {
+        float middle = (uCabin.x + uCabin.y) * 0.5 + 0.08;
+        float gap = min(min(abs(vLocal.z - uCabin.x - 0.5), abs(vLocal.z - middle)), abs(vLocal.z - uCabin.y + 0.35));
+        float seam = (1.0 - smoothstep(0.004, 0.004 + pixel, gap)) * step(0.36, vLocal.y);
+        float handle = boxMask(vec2(vLocal.z, vLocal.y), vec2(middle + 0.12, uBelt - 0.13), vec2(middle + 0.3, uBelt - 0.1), vec2(pixel))
+          + boxMask(vec2(vLocal.z, vLocal.y), vec2(uCabin.y - 0.2, uBelt - 0.13), vec2(uCabin.y - 0.02, uBelt - 0.1), vec2(pixel));
+        albedo *= 1.0 - 0.8 * clamp(seam + handle, 0.0, 1.0);
+      }
+    } else if (part == ${CAR.glass}) {
+      albedo = vec3(0.006, 0.008, 0.012);
+      roughness = 0.04;
+      metal = 0.0;
+      // The pillars between the windows, and the glow of the dashboard through the glass.
+      if (flank) {
+        float pillar = uBays > 0.0
+          ? 1.0 - stripes(vLocal.z / max(uBays, 0.1), 0.9, bayPixel)
+          : 1.0 - smoothstep(0.035, 0.035 + pixel, abs(vLocal.z - (uCabin.x + uCabin.y) * 0.5 - 0.08));
+        albedo = mix(albedo, vPaint * 0.5, pillar);
+        roughness = mix(roughness, 0.3, pillar);
+      }
+      inner = (uBays > 0.0 ? vec3(0.9, 0.8, 0.6) * 0.5 : vec3(0.05, 0.1, 0.14)) * vLit * (1.0 - smoothstep(uBelt, uBelt + 0.6, vLocal.y) * 0.6);
+    } else if (part == ${CAR.trim}) {
+      albedo = vec3(0.018);
+      roughness = 0.6;
+      metal = 0.0;
+    } else if (part == ${CAR.tyre}) {
+      albedo = vec3(0.012);
+      roughness = 0.92;
+      metal = 0.0;
+    } else {
+      albedo = vec3(0.62, 0.64, 0.68);
+      roughness = 0.24;
+      metal = 1.0;
+    }
+    // Under the body it is dark: the car hides the sky and the lamps.
+    float under = 0.35 + 0.65 * smoothstep(0.1, 0.7, vLocal.y);
+    color = shade(albedo, n, vWorld, view, roughness, metal, under) + inner;
   }
-  geometry.computeVertexNormals();
-  return tag(geometry.translate(x, y, z), "aPart", part);
+  gl_FragColor = vec4(applyFog(color, vDepth, vWorld.y), 1.0);
+  ${OUTPUT}
+}
+`;
+
+const BEAM_VERTEX = /* glsl */ `
+attribute float aPart;
+attribute vec3 aNeon;
+attribute float aLit;
+varying vec2 vUv;
+flat varying float vPart;
+flat varying vec3 vNeon;
+flat varying float vLit;
+varying float vDepth;
+void main() {
+  vUv = uv;
+  vPart = aPart;
+  vNeon = aNeon;
+  vLit = aLit;
+  vec4 mv = viewMatrix * modelMatrix * instanceMatrix * vec4(position, 1.0);
+  vDepth = -mv.z;
+  gl_Position = projectionMatrix * mv;
+}
+`;
+
+const BEAM_FRAGMENT = /* glsl */ `
+uniform vec3 uHead;
+uniform vec3 uTail;
+varying vec2 vUv;
+flat varying float vPart;
+flat varying vec3 vNeon;
+flat varying float vLit;
+varying float vDepth;
+${FOG}
+void main() {
+  int part = int(vPart + 0.5);
+  vec2 p = vUv - 0.5;
+  float round = max(0.0, 1.0 - length(p) * 2.0);
+  vec3 color;
+  if (part == ${BEAM.headPool}) {
+    // Headlamps on the road: two beams that widen and fade, brightest a few metres ahead.
+    float aside = abs(p.x) * 2.0;
+    float spread = 0.22 + vUv.y * 0.42;
+    float beam = pow(clamp(vUv.y, 0.0, 1.0), 0.7) * pow(1.0 - vUv.y, 1.8) * 3.2 * (1.0 - smoothstep(spread, spread + 0.3, aside));
+    color = uHead * beam * 0.14;
+  } else if (part == ${BEAM.tailPool}) {
+    color = uTail * round * round * 0.22;
+  } else if (part == ${BEAM.underGlow}) {
+    color = vNeon * pow(round, 1.5) * 0.45;
+  } else if (part == ${BEAM.trail}) {
+    // The streak a flying vehicle leaves behind.
+    color = vNeon * pow(clamp(1.0 - vUv.y, 0.0, 1.0), 1.8) * max(0.0, 1.0 - abs(p.x) * 2.0) * 0.8;
+  } else {
+    // Glare round a lamp: a bright core and a streak to either side.
+    float core = exp(-dot(p, p) * 60.0);
+    float streak = exp(-p.y * p.y * 900.0) * exp(-p.x * p.x * 9.0);
+    color = (part == ${BEAM.headFlare} ? uHead : uTail) * (core * 1.5 + streak * 0.45);
+  }
+  gl_FragColor = vec4(color * vLit * (1.0 - fogAmount(vDepth)), 1.0);
+  ${OUTPUT}
+}
+`;
+
+// A soft dark patch under something that stands on the ground.
+const SHADOW_VERTEX = /* glsl */ `
+varying vec2 vUv;
+varying float vDepth;
+void main() {
+  vUv = uv;
+  vec4 mv = viewMatrix * modelMatrix * instanceMatrix * vec4(position, 1.0);
+  vDepth = -mv.z;
+  gl_Position = projectionMatrix * mv;
+}
+`;
+
+const SHADOW_FRAGMENT = /* glsl */ `
+uniform vec2 uShape;     // 1 for a rounded box, 0 for a disc; darkness
+varying vec2 vUv;
+varying float vDepth;
+${FOG}
+void main() {
+  vec2 p = abs(vUv - 0.5) * 2.0;
+  float box = (1.0 - smoothstep(0.55, 1.0, p.x)) * (1.0 - smoothstep(0.7, 1.0, p.y));
+  float disc = 1.0 - smoothstep(0.2, 1.0, length(p));
+  float dark = mix(disc * disc, box, uShape.x) * uShape.y * (1.0 - fogAmount(vDepth));
+  gl_FragColor = vec4(0.0, 0.0, 0.0, dark);
+}
+`;
+
+const ROBOT_VERTEX = /* glsl */ `
+attribute vec4 aBody;    // part, limb (±1 a leg, ±2 an arm), top joint, middle joint
+attribute vec3 aShell;
+attribute vec3 aGlow;
+attribute vec3 aAccent;
+attribute vec3 aWalk;    // phase, pace (0 when standing), hover (drones)
+uniform float uTime;
+varying vec3 vWorld;
+varying vec3 vNormal;
+flat varying vec3 vShell;
+flat varying vec3 vGlow;
+flat varying vec3 vAccent;
+flat varying float vPart;
+varying float vDepth;
+
+vec2 turned(vec2 v, float angle) {
+  float c = cos(angle);
+  float s = sin(angle);
+  return vec2(v.x * c - v.y * s, v.x * s + v.y * c);
 }
 
-// All vehicles face +z.
-function carGeometry() {
-  return mergeGeometries([
-    box(1.9, 0.55, 4.4, 0, 0.52, 0, PAINT),
-    cabin(1.7, 0.52, 2.5, 0, 1.05, -0.2, GLASS),
-    box(0.5, 0.14, 0.06, -0.6, 0.6, 2.21, WHITE_LIGHT),
-    box(0.5, 0.14, 0.06, 0.6, 0.6, 2.21, WHITE_LIGHT),
-    box(1.7, 0.1, 0.06, 0, 0.66, -2.21, RED_LIGHT),
-    box(1.94, 0.05, 3.6, 0, 0.3, 0, NEON_LIGHT),
-  ]);
+void main() {
+  vec3 p = position;
+  vec3 n = normal;
+  float moving = step(0.01, aWalk.y);
+  float stride = uTime * 6.2 * aWalk.y + aWalk.x;
+  float limb = aBody.y;
+  if (limb != 0.0 && p.y < aBody.z + 0.03) {
+    // A limb swings from its top joint and bends at its middle one: legs at
+    // the knee as they come forward, arms a little at the elbow all the time.
+    bool leg = abs(limb) < 1.5;
+    float side = sign(limb);
+    float swing = sin(stride) * side * (leg ? 0.52 : -0.4) * moving;
+    float bend = leg ? max(0.0, -cos(stride) * side) * 0.85 * moving : -(0.25 + 0.2 * moving);
+    vec2 d = vec2(p.y - aBody.z, p.z);
+    vec2 m = n.yz;
+    if (p.y < aBody.w) {
+      vec2 below = turned(vec2(p.y - aBody.w, p.z), bend);
+      d = vec2(aBody.w - aBody.z, 0.0) + below;
+      m = turned(m, bend);
+    }
+    d = turned(d, swing);
+    m = turned(m, swing);
+    p.y = aBody.z + d.x;
+    p.z = d.y;
+    n = vec3(n.x, m);
+  }
+  // The body rises and falls with each step, and leans into its walk.
+  p.y += abs(cos(stride)) * 0.03 * moving;
+  p.z += (p.y - 0.9) * 0.04 * moving;
+  // Drones float, and someone standing sways a little.
+  p.y += aWalk.z * (1.7 + sin(uTime * 1.6 + aWalk.x) * 0.18);
+  p.x += sin(uTime * 0.8 + aWalk.x) * 0.012 * (1.0 - moving) * p.y;
+  vShell = aShell;
+  vGlow = aGlow;
+  vAccent = aAccent;
+  vPart = aBody.x;
+  vNormal = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * n);
+  vec4 world = modelMatrix * instanceMatrix * vec4(p, 1.0);
+  vWorld = world.xyz;
+  vec4 mv = viewMatrix * world;
+  vDepth = -mv.z;
+  gl_Position = projectionMatrix * mv;
 }
+`;
 
-function flyerGeometry() {
-  return mergeGeometries([
-    box(1.5, 0.42, 3.6, 0, 0, 0, PAINT),
-    cabin(1.15, 0.36, 1.7, 0, 0.37, 0.3, GLASS),
-    box(0.34, 0.3, 1.7, -1, -0.05, -0.5, PAINT),
-    box(0.34, 0.3, 1.7, 1, -0.05, -0.5, PAINT),
-    box(0.9, 0.08, 0.06, 0, 0.02, 1.81, WHITE_LIGHT),
-    box(0.3, 0.26, 0.06, -1, -0.05, -1.36, NEON_LIGHT),
-    box(0.3, 0.26, 0.06, 1, -0.05, -1.36, NEON_LIGHT),
-    box(0.2, 0.05, 2.2, 0, -0.23, 0, NEON_LIGHT),
-  ]);
+const ROBOT_FRAGMENT = /* glsl */ `
+varying vec3 vWorld;
+varying vec3 vNormal;
+flat varying vec3 vShell;
+flat varying vec3 vGlow;
+flat varying vec3 vAccent;
+flat varying float vPart;
+varying float vDepth;
+${FOG}
+${LIGHTING}
+void main() {
+  int part = int(vPart + 0.5);
+  vec3 n = normalize(vNormal);
+  vec3 view = normalize(cameraPosition - vWorld);
+  vec3 color;
+  if (part == ${BODY.light}) {
+    color = vGlow;
+  } else if (part == ${BODY.dark}) {
+    // Joints and soles: dark rubber and steel.
+    color = shade(vec3(0.03, 0.032, 0.04), n, vWorld, view, 0.55, 0.4, 1.0);
+  } else if (part == ${BODY.accent}) {
+    color = shade(vAccent, n, vWorld, view, 0.4, 0.3, 1.0);
+  } else {
+    // The shell: enamel over metal, with a soft shine.
+    color = shade(vShell, n, vWorld, view, 0.3, 0.35, 1.0);
+  }
+  gl_FragColor = vec4(applyFog(color, vDepth, vWorld.y), 1.0);
+  ${OUTPUT}
 }
-
-function trainGeometry() {
-  return mergeGeometries([
-    box(3, 3.1, 10.4, 0, 1.55, 0, PAINT),
-    box(3.04, 0.9, 9.4, 0, 2.05, 0, WHITE_LIGHT),
-    box(3.06, 0.14, 10.4, 0, 0.95, 0, NEON_LIGHT),
-  ]);
-}
-
-// Light that vehicles throw on what is around them, drawn additively.
-const HEAD_POOL = 0;
-const TAIL_POOL = 1;
-const UNDER_GLOW = 2;
-const TRAIL = 3;
-
-const flat = (width, length, y, z, part) => tag(new PlaneGeometry(width, length).rotateX(-Math.PI / 2).translate(0, y, z), "aPart", part);
-const carLightGeometry = () => mergeGeometries([flat(3.6, 10, 0.06, 7.2, HEAD_POOL), flat(2.8, 3.4, 0.06, -3.4, TAIL_POOL), flat(3, 5.6, 0.05, 0, UNDER_GLOW)]);
-const flyerLightGeometry = () => mergeGeometries([flat(0.7, 12, 0, -7.5, TRAIL)]);
-
-// --- Robot citizens -------------------------------------------------------------------
-// aBody: part (0 legs and wheels, 1 shell, 2 head, 3 light), swing direction, height of the joint.
-const piece = (geometry, part, swing = 0, joint = 0) => tag(geometry, "aBody", part, swing, joint);
-
-/** A walking robot about 1.7 m tall, facing +z. */
-function walkerGeometry() {
-  return mergeGeometries([
-    piece(new BoxGeometry(0.15, 0.82, 0.17).translate(-0.12, 0.41, 0), 0, 1, 0.82),
-    piece(new BoxGeometry(0.15, 0.82, 0.17).translate(0.12, 0.41, 0), 0, -1, 0.82),
-    piece(new BoxGeometry(0.48, 0.6, 0.3).translate(0, 1.13, 0), 1),
-    piece(new BoxGeometry(0.11, 0.56, 0.12).translate(-0.31, 1.12, 0), 1, -1, 1.4),
-    piece(new BoxGeometry(0.11, 0.56, 0.12).translate(0.31, 1.12, 0), 1, 1, 1.4),
-    piece(new IcosahedronGeometry(0.19, 1).scale(1, 0.85, 0.95).translate(0, 1.62, 0), 2),
-    piece(new BoxGeometry(0.27, 0.06, 0.05).translate(0, 1.64, 0.16), 3),
-    piece(new BoxGeometry(0.3, 0.05, 0.31).translate(0, 1.28, 0), 3),
-    piece(new CylinderGeometry(0.012, 0.012, 0.22, 4).translate(0.08, 1.86, 0), 1),
-  ]);
-}
-
-/** A hovering drone, its centre 0.3 m up: a round body, a glowing ring and an eye. */
-function droneGeometry() {
-  return mergeGeometries([
-    piece(new IcosahedronGeometry(0.3, 1).translate(0, 0.3, 0), 1),
-    piece(new TorusGeometry(0.44, 0.035, 5, 18).rotateX(Math.PI / 2).translate(0, 0.3, 0).toNonIndexed(), 3),
-    piece(new BoxGeometry(0.2, 0.08, 0.06).translate(0, 0.33, 0.27), 3),
-    piece(new CylinderGeometry(0.01, 0.01, 0.3, 4).translate(0, 0.66, 0), 1),
-  ]);
-}
-
-/** A delivery robot on wheels, facing +z, with a lit panel. */
-function courierGeometry() {
-  const wheels = [];
-  for (const x of [-0.3, 0.3]) for (const z of [-0.28, 0.28]) wheels.push(piece(new CylinderGeometry(0.11, 0.11, 0.08, 8).rotateZ(Math.PI / 2).translate(x, 0.11, z), 0));
-  return mergeGeometries([
-    ...wheels,
-    piece(new BoxGeometry(0.62, 0.48, 0.78).translate(0, 0.46, 0), 1),
-    piece(new BoxGeometry(0.4, 0.12, 0.04).translate(0, 0.55, 0.4), 3),
-    piece(new CylinderGeometry(0.01, 0.01, 0.7, 4).translate(-0.24, 1.0, -0.3), 1),
-    piece(new BoxGeometry(0.16, 0.1, 0.02).translate(-0.17, 1.3, -0.3), 3),
-  ]);
-}
+`;
 
 /**
  * Builds the moving life of the city. `sites` and `stops` (in route order) place
- * the groups standing on each stop's square.
+ * the groups standing before each stop's building. `air` takes the exhausts' vapour.
  */
-export function createLife({ scene, shared, palette, random, settings, kit, sites, stops }) {
-  const paints = ["#1b2a4a", "#4a1626", "#0f3d3e", "#23272f", "#aab3c2", "#b58a00", "#33204f"].map((hex) => new Color(hex));
+export function createLife({ scene, shared, palette, random, settings, kit, sites, stops, air }) {
+  const low = !settings.detail;
+  const paints = ["#16294f", "#5a1424", "#0d4443", "#1c2028", "#9aa3b2", "#b08a12", "#33204f", "#0b0c10", "#6f7682", "#7a1f1a", "#e6e2d8"].map((hex) => new Color(hex));
+  const taxiPaint = new Color("#d9a406");
+  const busPaint = new Color("#13806f");
   const none = new Color(0, 0, 0);
+  const defines = low ? { LOW: "" } : {};
 
-  const vehicleMaterial = new ShaderMaterial({
-    uniforms: {
-      ...shared,
-      uGlass: { value: new Color("#0a1324") },
-      uSky: { value: palette.glowViolet },
-      uHead: { value: bright(palette.headlight, 2.3) },
-      uTail: { value: bright(palette.red, 2.1) },
-    },
-    vertexShader: /* glsl */ `
-      attribute float aPart;
-      attribute vec3 aPaint;
-      attribute vec3 aNeon;
-      uniform vec3 uGlass;
-      uniform vec3 uSky;
-      uniform vec3 uHead;
-      uniform vec3 uTail;
-      varying vec3 vColor;
-      varying float vDepth;
-      varying float vHeight;
-      void main() {
-        vec4 world = modelMatrix * instanceMatrix * vec4(position, 1.0);
-        vec3 n = normalize(mat3(instanceMatrix) * normal);
-        float top = max(n.y, 0.0);
-        // Paint and glass catch a little of the sky's glow on top.
-        vec3 color = aPaint * (0.3 + 0.45 * top + 0.2 * abs(n.x)) + uSky * top * 0.3;
-        if (aPart > 3.5) color = aNeon;
-        else if (aPart > 2.5) color = uTail;
-        else if (aPart > 1.5) color = uHead;
-        else if (aPart > 0.5) color = uGlass + uSky * (0.15 + 0.5 * top);
-        vColor = color;
-        vHeight = world.y;
-        vec4 mv = viewMatrix * world;
-        vDepth = -mv.z;
-        gl_Position = projectionMatrix * mv;
-      }
-    `,
-    fragmentShader: /* glsl */ `
-      varying vec3 vColor;
-      varying float vDepth;
-      varying float vHeight;
-      ${FOG}
-      void main() {
-        gl_FragColor = vec4(applyFog(vColor, vDepth, vHeight), 1.0);
-        ${OUTPUT}
-      }
-    `,
-  });
+  const vehicleUniforms = {
+    ...shared,
+    uHead: { value: bright(palette.headlight, 2.6) },
+    uTail: { value: bright(palette.red, 2.3) },
+    uSign: { value: bright(palette.amber, 1.5) },
+  };
+  /** The vehicle material for one kind of vehicle. */
+  const vehicleMaterial = ({ cabin = [0, 0], belt = 0.9, bays = 0, sign }) =>
+    new ShaderMaterial({
+      defines,
+      uniforms: { ...vehicleUniforms, uCabin: { value: new Vector2(cabin[0], cabin[1]) }, uBelt: { value: belt }, uBays: { value: bays }, ...(sign ? { uSign: { value: sign } } : {}) },
+      vertexShader: VEHICLE_VERTEX,
+      fragmentShader: VEHICLE_FRAGMENT,
+    });
 
-  const lightMaterial = new ShaderMaterial({
+  const beamMaterial = new ShaderMaterial({
     blending: AdditiveBlending,
     transparent: true,
     depthWrite: false,
     uniforms: { ...shared, uHead: { value: palette.headlight }, uTail: { value: palette.red } },
-    vertexShader: /* glsl */ `
-      attribute float aPart;
-      attribute vec3 aNeon;
-      varying vec2 vUv;
-      flat varying float vPart;
-      flat varying vec3 vNeon;
-      varying float vDepth;
-      void main() {
-        vUv = uv;
-        vPart = aPart;
-        vNeon = aNeon;
-        vec4 mv = viewMatrix * modelMatrix * instanceMatrix * vec4(position, 1.0);
-        vDepth = -mv.z;
-        gl_Position = projectionMatrix * mv;
-      }
-    `,
-    fragmentShader: /* glsl */ `
-      uniform vec3 uHead;
-      uniform vec3 uTail;
-      varying vec2 vUv;
-      flat varying float vPart;
-      flat varying vec3 vNeon;
-      varying float vDepth;
-      ${FOG}
-      void main() {
-        float round = max(0.0, 1.0 - length(vUv - 0.5) * 2.0);
-        vec3 color;
-        if (vPart < 0.5) {
-          // Headlights: a beam on the road, brightest just ahead of the car.
-          float aside = (vUv.x - 0.5) * 3.2;
-          float beam = pow(clamp(vUv.y, 0.0, 1.0), 1.5) * (1.0 - smoothstep(0.9, 1.0, vUv.y)) * exp(-aside * aside);
-          color = uHead * beam * 0.36;
-        } else if (vPart < 1.5) {
-          color = uTail * round * round * 0.3;
-        } else if (vPart < 2.5) {
-          color = vNeon * pow(round, 1.5) * 0.5;
-        } else {
-          // The streak a flying vehicle leaves behind.
-          color = vNeon * pow(clamp(1.0 - vUv.y, 0.0, 1.0), 1.8) * max(0.0, 1.0 - abs(vUv.x - 0.5) * 2.0) * 0.8;
-        }
-        gl_FragColor = vec4(color * (1.0 - fogAmount(vDepth)), 1.0);
-        ${OUTPUT}
-      }
-    `,
+    vertexShader: BEAM_VERTEX,
+    fragmentShader: BEAM_FRAGMENT,
   });
 
-  /** One instanced mesh of vehicles, with an optional second one for their light, moving together. */
-  const createFleet = (bodyGeometry, lightGeometry, list) => {
+  const shadowMaterial = (box, darkness) =>
+    new ShaderMaterial({
+      blending: NormalBlending,
+      transparent: true,
+      depthWrite: false,
+      uniforms: { ...shared, uShape: { value: new Vector2(box ? 1 : 0, darkness) } },
+      vertexShader: SHADOW_VERTEX,
+      fragmentShader: SHADOW_FRAGMENT,
+    });
+  const carShadow = shadowMaterial(true, 0.82);
+  const blobShadow = shadowMaterial(false, 0.6);
+
+  /**
+   * One instanced mesh of vehicles, with two more that move with it: the light
+   * they throw (when `beams` is given) and the shadow under them (`shadow`).
+   */
+  const createFleet = (list, { geometry, material, beams, shadow }) => {
     if (list.length === 0) {
-      bodyGeometry.dispose();
-      lightGeometry?.dispose();
+      geometry.dispose();
+      beams?.dispose();
+      shadow?.dispose();
       return null;
     }
     const paint = new Float32Array(list.length * 3);
     const neon = new Float32Array(list.length * 3);
+    const lit = new Float32Array(list.length);
     list.forEach((item, index) => {
       paint.set([item.paint.r, item.paint.g, item.paint.b], index * 3);
       neon.set([item.neon.r, item.neon.g, item.neon.b], index * 3);
+      lit[index] = item.lit ?? 1;
     });
-    bodyGeometry.setAttribute("aPaint", new InstancedBufferAttribute(paint, 3));
-    bodyGeometry.setAttribute("aNeon", new InstancedBufferAttribute(neon, 3));
-    const body = new InstancedMesh(bodyGeometry, vehicleMaterial, list.length);
+    geometry.setAttribute("aPaint", new InstancedBufferAttribute(paint, 3));
+    geometry.setAttribute("aNeon", new InstancedBufferAttribute(neon, 3));
+    geometry.setAttribute("aLit", new InstancedBufferAttribute(lit, 1));
+    const body = new InstancedMesh(geometry, material, list.length);
     body.instanceMatrix.setUsage(DynamicDrawUsage);
     body.frustumCulled = false;
     scene.add(body);
-    if (lightGeometry) {
-      lightGeometry.setAttribute("aNeon", new InstancedBufferAttribute(neon, 3));
-      const lights = new InstancedMesh(lightGeometry, lightMaterial, list.length);
-      // Both meshes read the same matrices, so the light always sits under its vehicle.
+    // The other meshes read the same matrices, so light and shadow always sit under their vehicle.
+    if (shadow) {
+      const under = new InstancedMesh(shadow, carShadow, list.length);
+      under.instanceMatrix = body.instanceMatrix;
+      under.frustumCulled = false;
+      under.renderOrder = 0.5;
+      scene.add(under);
+    }
+    if (beams) {
+      beams.setAttribute("aNeon", new InstancedBufferAttribute(neon, 3));
+      beams.setAttribute("aLit", new InstancedBufferAttribute(lit, 1));
+      const lights = new InstancedMesh(beams, beamMaterial, list.length);
       lights.instanceMatrix = body.instanceMatrix;
       lights.frustumCulled = false;
       lights.renderOrder = 1;
@@ -315,17 +441,33 @@ export function createLife({ scene, shared, palette, random, settings, kit, site
   const lane = (x, z, dx, dz, length) => ({ x, z, dx, dz, length, yaw: Math.atan2(dx, dz) });
 
   // --- Cars ---
-  const cars = [];
-  const addCars = (stretch, density, tier) => {
+  const kinds = roadVehicles();
+  const moving = Object.fromEntries(Object.keys(kinds).map((kind) => [kind, []]));
+  const parked = Object.fromEntries(Object.keys(kinds).map((kind) => [kind, []]));
+  const pickKind = (tier, wide) => {
+    const roll = random();
+    if (wide && roll < 0.05) return "bus";
+    if (roll < 0.14) return "taxi";
+    if (roll < 0.36) return "hatch";
+    if (roll < 0.52) return "suv";
+    if (roll < 0.62) return "van";
+    if (roll < 0.62 + 0.14 * tier) return "sports";
+    return "sedan";
+  };
+  const paintOf = (kind) => (kind === "taxi" ? taxiPaint : kind === "bus" ? busPaint : random.pick(paints));
+  const addCars = (stretch, density, tier, wide) => {
     const count = Math.round(stretch.length * density * settings.traffic + random());
     for (let index = 0; index < count; index += 1) {
-      cars.push({
+      const kind = pickKind(tier, wide);
+      const car = {
         ...stretch,
-        speed: random.range(8, 14),
+        speed: kind === "bus" ? random.range(7, 9) : random.range(8, 14),
         offset: random.range(0, stretch.length),
-        paint: random.pick(paints),
-        neon: random.chance(0.15 + 0.5 * tier) ? bright(random.pick(palette.neon), 1.6) : none,
-      });
+        paint: paintOf(kind),
+        neon: kind !== "bus" && random.chance(0.12 + 0.45 * tier) ? bright(random.pick(palette.neon), 1.6) : none,
+      };
+      moving[kind].push(car);
+      air?.exhaust({ ...car, back: kinds[kind].length / 2 - 0.1 });
     }
   };
   const junctionHalf = (junction) => Math.max(...SIDE_STREETS.filter((street) => street.junction === junction.id).map((street) => STREETS[street.street].half)) + 1;
@@ -337,41 +479,52 @@ export function createLife({ scene, shared, palette, random, settings, kit, site
     if (length > 20) {
       const tier = grandnessAt((from + to) / 2);
       // Driving on the right: lanes right of the centre line head down the street (-z).
-      for (const x of [1.75, 5.25]) addCars(lane(x, from, 0, -1, length), lerp(0.006, 0.014, tier), tier);
-      for (const x of [-1.75, -5.25]) addCars(lane(x, to, 0, 1, length), lerp(0.006, 0.014, tier), tier);
+      for (const x of [1.75, 5.25]) addCars(lane(x, from, 0, -1, length), lerp(0.006, 0.014, tier), tier, x > 3);
+      for (const x of [-1.75, -5.25]) addCars(lane(x, to, 0, 1, length), lerp(0.006, 0.014, tier), tier, x < -3);
     }
     from = cut.z - cut.half;
   }
   // Side streets: two lanes each way on the avenues, one each way elsewhere, and parked cars along the kerbs.
-  const parked = [];
   for (const street of SIDE_STREETS) {
     const { z } = junctionById(street.junction);
     const road = STREETS[street.street];
     const start = STREETS.main.half + 2;
-    const end = street.end === "stub" ? street.reach - 1 : street.reach - street.square - 1;
+    const end = street.end === "stub" ? street.reach - 1 : street.reach - roundaboutOf(street).outer - 1;
     const length = end - start;
     if (length < 15) continue;
     const tier = grandnessAt(z);
     const offsets = road.half >= 7 ? [1.75, 5.25] : [2.5];
     for (const offset of offsets) {
       // Heading out on the right-hand lane, coming back on the other.
-      addCars(lane(street.side * start, z + street.side * offset, street.side, 0, length), 0.008, tier);
-      addCars(lane(street.side * end, z - street.side * offset, -street.side, 0, length), 0.008, tier);
+      addCars(lane(street.side * start, z + street.side * offset, street.side, 0, length), 0.008, tier, false);
+      addCars(lane(street.side * end, z - street.side * offset, -street.side, 0, length), 0.008, tier, false);
     }
     if (road.half < 7) {
       for (const edge of [-1, 1]) {
         for (let along = facadeOf("main") + 4; along < end - 3; along += 6.5) {
           if (!random.chance(0.5)) continue;
-          parked.push({ x: street.side * along, z: z + edge * (road.half - 1.15), yaw: street.side > 0 ? Math.PI / 2 : -Math.PI / 2, paint: random.pick(paints), neon: none });
+          const kind = random.pick(["sedan", "hatch", "suv", "van", "sedan", "taxi"]);
+          parked[kind].push({ x: street.side * along, z: z + edge * (road.half - 1.2), yaw: street.side > 0 ? Math.PI / 2 : -Math.PI / 2, paint: paintOf(kind), neon: none, lit: 0 });
         }
       }
     }
   }
-  const carFleet = createFleet(carGeometry(), carLightGeometry(), cars);
-  const parkedFleet = createFleet(carGeometry(), null, parked);
-  if (parkedFleet) {
-    parked.forEach((car, index) => writeMatrix(parkedFleet.instanceMatrix.array, index, car.x, 0, car.z, car.yaw, 1));
-    parkedFleet.instanceMatrix.needsUpdate = true;
+
+  const fleets = [];
+  for (const [kind, model] of Object.entries(kinds)) {
+    const width = kind === "bus" ? 3.2 : 2.6;
+    const material = vehicleMaterial({ cabin: model.cabin, belt: model.belt, bays: kind === "bus" ? 1.45 : 0 });
+    const list = moving[kind];
+    const fleet = createFleet(list, { geometry: model.geometry.clone(), material, beams: carLightGeometry(model.length), shadow: shadowGeometry(width, model.length + 1) });
+    if (fleet) fleets.push({ fleet, list });
+    const still = parked[kind];
+    const lot = createFleet(still, { geometry: model.geometry, material, shadow: shadowGeometry(width, model.length + 1) });
+    if (lot) {
+      still.forEach((car, index) => writeMatrix(lot.instanceMatrix.array, index, car.x, 0, car.z, car.yaw, 1));
+      lot.instanceMatrix.needsUpdate = true;
+    } else if (!fleet) {
+      material.dispose();
+    }
   }
 
   // --- Flying vehicles: above the main street from midtown on, across it at junctions, and round the tallest tower ---
@@ -398,29 +551,37 @@ export function createLife({ scene, shared, palette, random, settings, kit, site
       flyers.push({ kind: "orbit", x: tower.x, z: tower.z, y: 82 + index * 7, radius: 24 + index * 4, speed: (index % 2 === 0 ? 1 : -1) * random.range(0.25, 0.4), offset: random.range(0, 6), phase: random.range(0, 6), paint: random.pick(paints), neon: bright(palette.emerald, 2.2) });
     }
   }
-  const flyerFleet = createFleet(flyerGeometry(), flyerLightGeometry(), flyers);
+  const flyerFleet = createFleet(flyers, { geometry: flyerGeometry(), material: vehicleMaterial({ cabin: [0.45, -0.5], belt: 0.22, bays: 0 }), beams: flyerLightGeometry() });
 
   // --- Trains on bridges over the main street ---
   const trainCars = [];
   RAILS.forEach((rail, index) => {
-    kit.add(PART.box, { y: 13.4, z: rail.z, w: 600, h: 1.1, d: 2.6, style: STYLE.plain, color: palette.steel });
-    kit.add(PART.box, { y: 13.2, z: rail.z, w: 600, h: 0.12, d: 0.3, style: STYLE.neon, lit: 1, color: palette.accent });
-    for (const x of [-250, -190, -130, -95, -10.4, 10.4, 95, 130, 190, 250]) kit.add(PART.box, { x, z: rail.z, w: 1.2, h: 13.4, d: 1.2, style: STYLE.plain, color: palette.steel });
+    // The viaduct: a deck on a box girder, a parapet each side, piers with a wider head, and a strip of light under the deck.
+    kit.add(PART.box, { y: 12.6, z: rail.z, w: 600, h: 0.9, d: 2.2, style: STYLE.plain, pattern: MASONRY.concrete, color: palette.concrete });
+    kit.add(PART.box, { y: 13.5, z: rail.z, w: 600, h: 0.28, d: 4.4, style: STYLE.plain, pattern: MASONRY.concrete, color: palette.concrete });
+    for (const edge of [-1, 1]) kit.add(PART.box, { y: 13.78, z: rail.z + edge * 2.1, w: 600, h: 0.75, d: 0.14, style: STYLE.metal, pattern: METAL.zinc, color: palette.steel });
+    for (const edge of [-0.72, 0.72]) kit.add(PART.box, { y: 13.78, z: rail.z + edge, w: 600, h: 0.14, d: 0.09, style: STYLE.metal, pattern: METAL.chrome, color: palette.steel });
+    kit.add(PART.box, { y: 12.52, z: rail.z, w: 600, h: 0.07, d: 0.3, style: STYLE.neon, lit: 1, color: palette.accent });
+    for (const x of [-250, -190, -130, -95, -10.4, 10.4, 95, 130, 190, 250]) {
+      kit.add(PART.cylinder, { x, z: rail.z, w: 1.5, h: 11.4, d: 1.5, style: STYLE.plain, pattern: MASONRY.concrete, color: palette.concrete });
+      kit.add(PART.box, { x, y: 11.4, z: rail.z, w: 1.8, h: 1.2, d: 3.6, style: STYLE.plain, pattern: MASONRY.concrete, color: palette.concrete });
+    }
     const heading = index % 2 === 0 ? 1 : -1;
     const neon = bright(random.pick(palette.neon), 1.8);
-    for (let car = 0; car < 5; car += 1) trainCars.push({ z: rail.z, heading, lag: car * 11, speed: 26, offset: index * 170, paint: palette.steel.clone().multiplyScalar(1.6), neon });
+    for (let car = 0; car < 5; car += 1) trainCars.push({ z: rail.z, heading, lag: car * 10.7, speed: 26, offset: index * 170, paint: new Color("#c7ccd6"), neon });
   });
-  const trainFleet = createFleet(trainGeometry(), null, trainCars);
+  const trainFleet = createFleet(trainCars, { geometry: trainGeometry(), material: vehicleMaterial({ cabin: [5, -5], belt: 1.5, bays: 1.3, sign: bright(palette.warm, 1.25) }) });
 
   // --- Robot citizens ---
-  const shells = ["#d9dee8", "#9aa3b5", "#2a3142", "#c9b28a", "#5a6478"].map((hex) => new Color(hex));
-  const kinds = { walker: [], drone: [], courier: [] };
+  const shells = ["#d9dee8", "#9aa3b5", "#2a3142", "#c9b28a", "#5a6478", "#e8e4da", "#3d4a66", "#8d5f3c"].map((hex) => new Color(hex));
+  const accents = ["#1c2230", "#b0452a", "#1f6f6a", "#c99a1e", "#5a4a9a", "#2a3142", "#a8323a"].map((hex) => new Color(hex));
+  const crowd = { walker: [], heavy: [], drone: [], courier: [] };
   const robot = (extra) => {
     const roll = random();
-    const kind = roll < 0.72 ? "walker" : roll < 0.86 ? "drone" : "courier";
-    const item = { shell: random.pick(shells), glow: bright(random.pick(palette.neon), random.range(1.1, 1.8)), size: random.range(0.92, 1.08), phase: random.range(0, 6), ...extra };
+    const kind = roll < 0.58 ? "walker" : roll < 0.74 ? "heavy" : roll < 0.87 ? "drone" : "courier";
+    const item = { shell: random.pick(shells), accent: random.pick(accents), glow: bright(random.pick(palette.neon), random.range(1.2, 1.9)), size: random.range(0.92, 1.08), phase: random.range(0, 6), ...extra };
     if (kind === "courier") item.speed = (item.speed ?? 0) * 0.7;
-    kinds[kind].push(item);
+    crowd[kind].push(item);
   };
 
   // Walkers on the sidewalks of the main street and the side streets.
@@ -438,10 +599,11 @@ export function createLife({ scene, shared, palette, random, settings, kit, site
     if (length > 12) {
       const tier = grandnessAt((walkFrom + to) / 2);
       for (const side of [-1, 1]) {
-        const x = side * random.range(STREETS.main.half + 1.4, STREETS.main.half + STREETS.main.walk - 0.6);
+        // The middle of the sidewalk: clear of the lamps and bins at the kerb and the tables against the buildings.
+        const x = side * random.range(STREETS.main.half + 2.4, STREETS.main.half + STREETS.main.walk - 1.5);
         const heading = random.chance(0.5) ? 1 : -1;
         sidewalk(lane(x, heading < 0 ? walkFrom : to, 0, heading, length), tier);
-        const x2 = side * random.range(STREETS.main.half + 1.4, STREETS.main.half + STREETS.main.walk - 0.6);
+        const x2 = side * random.range(STREETS.main.half + 2.4, STREETS.main.half + STREETS.main.walk - 1.5);
         sidewalk(lane(x2, -heading < 0 ? walkFrom : to, 0, -heading, length), tier);
       }
     }
@@ -451,121 +613,71 @@ export function createLife({ scene, shared, palette, random, settings, kit, site
     const { z } = junctionById(street.junction);
     const road = STREETS[street.street];
     const start = facadeOf("main") + 1;
-    const end = street.end === "stub" ? street.reach - 2 : street.reach - street.square + 2;
+    const end = street.end === "stub" ? street.reach - 2 : street.reach - roundaboutOf(street).outer + 1;
     const length = end - start;
     for (const edge of [-1, 1]) {
-      const offset = z + edge * (road.half + 1.2 + random() * (road.walk - 1.6));
+      const offset = z + edge * (road.half + 1.5 + random() * (road.walk - 2.2));
       const outward = random.chance(0.5);
       sidewalk(lane(street.side * (outward ? start : end), offset, outward ? street.side : -street.side, 0, length), grandnessAt(z) * 0.8);
     }
   }
 
-  // Small groups standing on each stop's square, looking at the building or chatting.
+  // Small groups standing before each stop's building, looking at it or chatting.
   stops.forEach((stop, index) => {
     const site = sites[index];
     const cos = Math.cos(site.turn);
     const sin = Math.sin(site.turn);
     const toWorld = (lx, lz) => ({ x: site.x + lx * cos + lz * sin, z: site.z - lx * sin + lz * cos });
-    const plaza = site.footprint.depth / 2 + site.footprint.apron + 5.5;
+    const front = site.footprint.depth / 2 + site.footprint.apron;
+    const place = placeById(stop.place);
+    // On a square they keep to the paved ring before the building; on the main street, to its forecourt.
+    const ring = place.at === "main" ? null : roundaboutOf(sideStreetById(place.at));
+    const depth = ring ? ring.square + 1.5 - ring.outer - 1.8 : 8;
     const count = Math.round((3 + 3 * stop.grandness) * settings.crowd);
     for (let n = 0; n < count; n += 1) {
-      const angle = ((random.chance(0.5) ? 1 : -1) * random.range(45, 140) * Math.PI) / 180;
-      const radius = random.range(6.4, 8.4);
-      const spot = toWorld(Math.sin(angle) * radius, plaza + Math.cos(angle) * radius);
+      const spot = toWorld(random.range(-1, 1) * (site.footprint.width / 2 + 3), front + 0.9 + random() * Math.max(1, depth));
       robot({ ...spot, yaw: Math.atan2(site.x - spot.x, site.z - spot.z) + random.range(-0.5, 0.5) });
     }
     if (stop.kind === "graduation") {
       for (let n = 0; n < Math.round(10 * settings.crowd); n += 1) {
-        const spot = toWorld(random.range(-10, 10), site.footprint.depth / 2 + site.footprint.apron + random.range(0.8, 3.4));
+        const spot = toWorld(random.range(-10, 10), front + random.range(0.8, 3.4));
         robot({ ...spot, yaw: Math.atan2(site.x - spot.x, site.z - spot.z) + random.range(-0.3, 0.3) });
       }
     }
   });
 
-  const robotMaterial = new ShaderMaterial({
-    uniforms: { ...shared },
-    vertexShader: /* glsl */ `
-      attribute vec3 aBody;    // part, swing direction, height of the joint
-      attribute vec3 aShell;
-      attribute vec3 aGlow;
-      attribute vec3 aWalk;    // phase, pace (0 when standing), hover (drones)
-      uniform float uTime;
-      varying vec3 vWorld;
-      varying vec3 vNormal;
-      flat varying vec3 vShell;
-      flat varying vec3 vGlow;
-      flat varying float vPart;
-      varying float vDepth;
-      void main() {
-        vec3 p = position;
-        float moving = step(0.01, aWalk.y);
-        float stride = uTime * 7.0 * aWalk.y + aWalk.x;
-        // Legs and arms swing from their joints; the body bobs with each step.
-        p.z += aBody.y * sin(stride) * max(0.0, aBody.z - p.y) * 0.55 * moving;
-        p.y += abs(cos(stride)) * 0.04 * moving;
-        // Drones float, and someone standing sways a little.
-        p.y += aWalk.z * (1.7 + sin(uTime * 1.6 + aWalk.x) * 0.18);
-        p.x += sin(uTime * 0.8 + aWalk.x) * 0.03 * (1.0 - moving) * p.y;
-        vShell = aShell;
-        vGlow = aGlow;
-        vPart = aBody.x;
-        vNormal = normalize(mat3(modelMatrix * instanceMatrix) * normal);
-        vec4 world = modelMatrix * instanceMatrix * vec4(p, 1.0);
-        vWorld = world.xyz;
-        vec4 mv = viewMatrix * world;
-        vDepth = -mv.z;
-        gl_Position = projectionMatrix * mv;
-      }
-    `,
-    fragmentShader: /* glsl */ `
-      varying vec3 vWorld;
-      varying vec3 vNormal;
-      flat varying vec3 vShell;
-      flat varying vec3 vGlow;
-      flat varying float vPart;
-      varying float vDepth;
-      ${FOG}
-      ${LIGHTING}
-      void main() {
-        vec3 n = normalize(vNormal);
-        vec3 view = normalize(cameraPosition - vWorld);
-        vec3 color;
-        if (vPart > 2.5) {
-          color = vGlow;
-        } else {
-          vec3 albedo = vPart < 0.5 ? vShell * 0.35 : (vPart > 1.5 ? vShell * 1.1 : vShell);
-          color = shade(albedo, n, vWorld, view, 1.0);
-          vec3 reflected = reflect(-view, n);
-          color += uMoonColor * pow(max(dot(reflected, uMoonDir), 0.0), 18.0) * 1.6;
-        }
-        gl_FragColor = vec4(applyFog(color, vDepth, vWorld.y), 1.0);
-        ${OUTPUT}
-      }
-    `,
-  });
-
+  const robotMaterial = new ShaderMaterial({ defines, uniforms: { ...shared }, vertexShader: ROBOT_VERTEX, fragmentShader: ROBOT_FRAGMENT });
   const crowds = [];
-  const shapes = { walker: walkerGeometry, drone: droneGeometry, courier: courierGeometry };
-  for (const [kind, list] of Object.entries(kinds)) {
+  const shapes = { walker: () => walkerGeometry(0, low), heavy: () => walkerGeometry(1, low), drone: droneGeometry, courier: courierGeometry };
+  for (const [kind, list] of Object.entries(crowd)) {
     if (list.length === 0) continue;
     // Walking ones first, so they can be moved without touching the others.
     list.sort((a, b) => (b.walking ? 1 : 0) - (a.walking ? 1 : 0));
     const geometry = shapes[kind]();
     const shell = new Float32Array(list.length * 3);
     const glow = new Float32Array(list.length * 3);
+    const accent = new Float32Array(list.length * 3);
     const walk = new Float32Array(list.length * 3);
+    const legged = kind === "walker" || kind === "heavy";
     list.forEach((one, index) => {
       shell.set([one.shell.r, one.shell.g, one.shell.b], index * 3);
       glow.set([one.glow.r, one.glow.g, one.glow.b], index * 3);
-      walk.set([one.phase, kind === "walker" && one.walking ? one.pace : 0, kind === "drone" ? 1 : 0], index * 3);
+      accent.set([one.accent.r, one.accent.g, one.accent.b], index * 3);
+      walk.set([one.phase, legged && one.walking ? one.pace : 0, kind === "drone" ? 1 : 0], index * 3);
     });
     geometry.setAttribute("aShell", new InstancedBufferAttribute(shell, 3));
     geometry.setAttribute("aGlow", new InstancedBufferAttribute(glow, 3));
+    geometry.setAttribute("aAccent", new InstancedBufferAttribute(accent, 3));
     geometry.setAttribute("aWalk", new InstancedBufferAttribute(walk, 3));
     const mesh = new InstancedMesh(geometry, robotMaterial, list.length);
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     mesh.frustumCulled = false;
     scene.add(mesh);
+    const under = new InstancedMesh(blobGeometry(kind === "courier" ? 1.5 : 1.25), blobShadow, list.length);
+    under.instanceMatrix = mesh.instanceMatrix;
+    under.frustumCulled = false;
+    under.renderOrder = 0.5;
+    scene.add(under);
     const walkers = list.filter((one) => one.walking).length;
     list.forEach((one, index) => {
       if (!one.walking) writeMatrix(mesh.instanceMatrix.array, index, one.x, KERB, one.z, one.yaw, one.size);
@@ -577,14 +689,14 @@ export function createLife({ scene, shared, palette, random, settings, kit, site
 
   return {
     update(time) {
-      if (carFleet) {
-        const matrices = carFleet.instanceMatrix.array;
-        for (let index = 0; index < cars.length; index += 1) {
-          const car = cars[index];
+      for (const { fleet, list } of fleets) {
+        const matrices = fleet.instanceMatrix.array;
+        for (let index = 0; index < list.length; index += 1) {
+          const car = list[index];
           const travelled = (car.offset + car.speed * time) % car.length;
           writeMatrix(matrices, index, car.x + car.dx * travelled, 0, car.z + car.dz * travelled, car.yaw, fade(travelled, car.length, CAR_FADE));
         }
-        carFleet.instanceMatrix.needsUpdate = true;
+        fleet.instanceMatrix.needsUpdate = true;
       }
 
       if (flyerFleet) {
@@ -610,7 +722,7 @@ export function createLife({ scene, shared, palette, random, settings, kit, site
         for (let index = 0; index < trainCars.length; index += 1) {
           const car = trainCars[index];
           const travelled = (car.offset + car.speed * time - car.lag + span * 4) % span;
-          writeMatrix(matrices, index, car.heading * (travelled - span / 2), 14.5, car.z, car.heading > 0 ? Math.PI / 2 : -Math.PI / 2, 1);
+          writeMatrix(matrices, index, car.heading * (travelled - span / 2), 13.75, car.z, car.heading > 0 ? Math.PI / 2 : -Math.PI / 2, 1);
         }
         trainFleet.instanceMatrix.needsUpdate = true;
       }

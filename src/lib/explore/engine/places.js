@@ -24,10 +24,11 @@ import {
   Vector3,
 } from "three";
 
-import { END_PLAZA, LOTS, lotSite } from "@/lib/explore/city";
+import { END_PLAZA, LOTS, facadeOf, lotSite, placeById, roundaboutOf, sideStreetById } from "@/lib/explore/city";
 
-import { FLOOR, SHOP_FLOOR, crane, inFrame } from "./architecture";
-import { PART, STYLE, WINDOWS } from "./kit";
+import { FLOOR, SHOP_FLOOR, crane, inFrame, shopLights } from "./architecture";
+import { barrier, standing } from "./furniture";
+import { MASONRY, METAL, PART, PAVING, STYLE, WINDOWS } from "./kit";
 import { bright } from "./palette";
 import { OUTPUT } from "./shaders";
 import { canvasTexture, drawHoloText, drawPlazaRings, drawProgressSign, drawScreenFallback, drawStopMarker, drawTitleSign } from "./signs";
@@ -199,34 +200,85 @@ function groundMark(canvas, size) {
 // door: { z, width, height, y }, eye (camera height at the stop), frontY (the
 // height to frame) }.
 
-function workshop({ add, footprint, palette, random, detail }) {
+function workshop({ add, footprint, palette, random, detail, light }) {
   const { width: w, depth: d } = footprint;
   const height = SHOP_FLOOR + 2 * FLOOR;
   const brick = palette.walls.old[5];
   const stone = palette.stone[0];
-  add(PART.box, { w, h: height, d, style: STYLE.wall, seed: random() * 90, lit: 0.45, pattern: WINDOWS.old, color: brick });
-  // A garage on the ground floor, its door half up and the workshop lit inside.
-  add(PART.box, { y: 0, z: d / 2 - 0.15, w: 6.4, h: 3.7, d: 0.4, style: STYLE.plain, color: palette.darkSteel });
-  add(PART.plane, { y: 0.05, z: d / 2 - 0.3, w: 6, h: 2.1, d: 0.1, style: STYLE.neon, lit: 0.55, color: palette.warm });
-  add(PART.box, { y: 2.15, z: d / 2 + 0.02, w: 6.1, h: 1.5, d: 0.12, style: STYLE.vent, color: palette.stone[2] });
-  add(PART.box, { y: SHOP_FLOOR - 0.16, w: w + 0.3, h: 0.32, d: d + 0.3, style: STYLE.plain, color: stone });
-  add(PART.box, { y: height - 0.05, w: w + 0.7, h: 0.5, d: d + 0.7, style: STYLE.plain, color: stone });
+  const grey = palette.concrete;
+  // This seed's walls are brick (see wallOf in kit.js).
+  const seed = 1;
+  // The garage's mouth, and how far in it goes.
+  const bay = 6.2;
+  const mouth = 3.8;
+  const deep = 7;
+  const pier = (w - bay) / 2;
+  const front = d / 2;
+  // The upper floors rest on a brick pier each side of the open garage.
+  add(PART.box, { y: mouth, w, h: height - mouth, d, style: STYLE.wall, seed, lit: 0.45, pattern: WINDOWS.old, color: brick });
+  for (const side of [-1, 1]) {
+    add(PART.box, { x: (side * (bay + pier)) / 2, w: pier, h: mouth, d, style: STYLE.wall, seed, lit: 0.6, pattern: WINDOWS.old, color: brick });
+    // The garage's side walls, rendered and painted.
+    add(PART.box, { x: side * (bay / 2 - 0.04), z: front - deep / 2, w: 0.08, h: mouth, d: deep, style: STYLE.plain, pattern: MASONRY.render, color: grey });
+    // The guide rail of the roller door.
+    add(PART.box, { x: side * (bay / 2 - 0.1), z: front - 0.1, w: 0.08, h: mouth, d: 0.1, style: STYLE.metal, pattern: METAL.zinc, color: palette.steel });
+  }
+  add(PART.box, { z: front - deep, w: bay, h: mouth, d: 0.3, style: STYLE.plain, pattern: MASONRY.render, color: grey });
+  add(PART.box, { z: -front + 0.15, w: bay, h: mouth, d: 0.3, style: STYLE.plain, pattern: MASONRY.render, color: brick });
+  add(PART.box, { z: front - deep / 2 + 0.6, w: bay, h: 0.06, d: deep + 1.6, style: STYLE.plain, pattern: MASONRY.concrete, color: grey.clone().multiplyScalar(0.7) });
+  // The roller door, rolled most of the way up into its box.
+  add(PART.box, { y: mouth - 0.45, z: front - 0.2, w: bay, h: 0.45, d: 0.4, style: STYLE.metal, color: palette.darkSteel });
+  add(PART.box, { y: mouth - 1.0, z: front - 0.1, w: bay - 0.2, h: 0.56, d: 0.05, style: STYLE.vent, pattern: 1, color: palette.stone[2] });
+  // Strip lights on the ceiling.
+  for (const x of [-1.5, 1.5]) add(PART.box, { x, y: mouth - 0.1, z: front - deep / 2, w: 0.12, h: 0.05, d: 3.4, style: STYLE.neon, lit: 1.7, color: palette.cool.clone().lerp(palette.warm, 0.5) });
+  light({ x: 0, z: front - deep / 2 + 1, radius: 7.5, color: palette.warm.clone().lerp(palette.cool, 0.4), strength: 1.25 });
+  light({ x: 0, z: front + 2.5, radius: 7, color: palette.warm, strength: 0.8 });
+
+  // Inside: a bench with a screen left on, a board of tools, shelves, tyres, a drum and a trolley.
+  const back = front - deep + 0.15;
+  add(PART.box, { x: -0.9, z: back + 0.4, w: 2.7, h: 0.86, d: 0.62, style: STYLE.metal, color: palette.darkSteel });
+  add(PART.box, { x: -0.9, y: 0.86, z: back + 0.42, w: 2.9, h: 0.06, d: 0.72, style: STYLE.wood, color: palette.wood });
+  add(PART.plane, { x: -1.5, y: 1.0, z: back + 0.5, w: 0.74, h: 0.46, d: 0.02, style: STYLE.lightbox, seed: random() * 90, lit: 1.1, color: palette.accent });
+  add(PART.box, { x: -1.5, y: 0.92, z: back + 0.46, w: 0.2, h: 0.1, d: 0.14, style: STYLE.metal, color: palette.darkSteel });
+  add(PART.box, { x: -0.9, y: 1.5, z: back + 0.05, w: 2.6, h: 1.1, d: 0.05, style: STYLE.wood, color: palette.wood.clone().multiplyScalar(0.7) });
+  if (detail) {
+    for (let i = 0; i < 7; i += 1) add(PART.box, { x: -2.0 + i * 0.36, y: 1.7 + (i % 3) * 0.12, z: back + 0.1, w: 0.07, h: 0.5 - (i % 2) * 0.12, d: 0.03, style: STYLE.metal, pattern: METAL.zinc, color: palette.steel });
+    // Shelves down one side, with boxes on them.
+    for (const y of [0.5, 1.2, 1.9]) {
+      add(PART.box, { x: bay / 2 - 0.4, y, z: front - deep / 2, w: 0.55, h: 0.05, d: 3.2, style: STYLE.metal, pattern: METAL.zinc, color: palette.steel });
+      for (let i = 0; i < 4; i += 1) {
+        if (random() < 0.25) continue;
+        add(PART.box, { x: bay / 2 - 0.4, y: y + 0.05, z: front - deep / 2 - 1.2 + i * 0.8, w: 0.42, h: 0.3 + random() * 0.25, d: 0.5, style: STYLE.wood, seed: random() * 90, color: palette.wood.clone().multiplyScalar(0.8 + random() * 0.5) });
+      }
+    }
+    for (const x of [bay / 2 - 0.4, bay / 2 - 0.4 - 0.04]) add(PART.box, { x, z: front - deep / 2 + (x > bay / 2 - 0.42 ? 1.6 : -1.6), w: 0.05, h: 2.3, d: 0.05, style: STYLE.metal, color: palette.steel });
+    // A stack of tyres, an oil drum, a red tool trolley.
+    for (let i = 0; i < 3; i += 1) add(PART.cylinder, { x: -bay / 2 + 0.6, y: 0.06 + i * 0.24, z: back + 1.6, w: 0.66, h: 0.23, d: 0.66, style: STYLE.plain, pattern: MASONRY.render, color: palette.rubber });
+    add(PART.cylinder, { x: -bay / 2 + 0.55, y: 0.06, z: back + 2.7, w: 0.58, h: 0.88, d: 0.58, style: STYLE.metal, pattern: METAL.ribbed, color: palette.blue.clone().multiplyScalar(0.45) });
+    add(PART.box, { x: 1.2, y: 0.16, z: back + 1.5, w: 0.7, h: 0.8, d: 0.46, turn: 0.3, style: STYLE.metal, color: palette.red.clone().multiplyScalar(0.5) });
+    for (const [lx, lz] of [[-0.28, -0.16], [0.28, -0.16], [0.28, 0.16], [-0.28, 0.16]]) add(PART.cylinder, { x: 1.2 + lx, y: 0.06, z: back + 1.5 + lz, w: 0.1, h: 0.1, d: 0.1, style: STYLE.metal, color: palette.rubber });
+  }
+
+  add(PART.box, { y: mouth - 0.1, w: w + 0.3, h: 0.32, d: d + 0.3, style: STYLE.plain, pattern: MASONRY.stone, color: stone });
+  add(PART.box, { y: height - 0.05, w: w + 0.7, h: 0.5, d: d + 0.7, style: STYLE.plain, pattern: MASONRY.stone, color: stone });
   if (detail) {
     for (let floor = 1; floor < 3; floor += 1) {
       add(PART.escape, { x: w / 2, y: SHOP_FLOOR + (floor - 1) * FLOOR, z: d / 2 - 2.6, w: 2.8, h: FLOOR, d: 1.25, turn: Math.PI / 2, style: STYLE.metal, color: palette.darkSteel });
     }
   }
   // On the roof: a water tank, an antenna, and a screen on legs facing the street.
-  add(PART.cylinder, { x: -w * 0.28, y: height + 1, z: -d * 0.2, w: 2.2, h: 2.4, d: 2.2, style: STYLE.plain, color: palette.darkSteel });
-  for (const [lx, lz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) add(PART.box, { x: -w * 0.28 + lx * 0.8, y: height, z: -d * 0.2 + lz * 0.8, w: 0.12, h: 1, d: 0.12, style: STYLE.metal, color: palette.steel });
-  add(PART.cylinder, { x: w * 0.36, y: height, z: -d * 0.3, w: 0.08, h: 6, d: 0.08, style: STYLE.metal, color: palette.steel });
+  add(PART.cylinder, { x: -w * 0.28, y: height + 1.45, z: -d * 0.2, w: 2.2, h: 2.4, d: 2.2, style: STYLE.wood, color: palette.wood.clone().multiplyScalar(0.6) });
+  add(PART.cone, { x: -w * 0.28, y: height + 3.85, z: -d * 0.2, w: 2.5, h: 0.7, d: 2.5, style: STYLE.metal, pattern: METAL.zinc, color: palette.steel });
+  for (const [lx, lz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) add(PART.box, { x: -w * 0.28 + lx * 0.8, y: height + 0.45, z: -d * 0.2 + lz * 0.8, w: 0.12, h: 1, d: 0.12, style: STYLE.metal, color: palette.steel });
+  add(PART.cylinder, { x: w * 0.36, y: height + 0.45, z: -d * 0.3, w: 0.08, h: 6, d: 0.08, style: STYLE.metal, color: palette.steel });
   const screenWidth = 6.2;
-  for (const x of [-2, 2]) add(PART.box, { x, y: height, z: d / 2 - 1.4, w: 0.25, h: 1.5, d: 0.25, style: STYLE.metal, color: palette.steel });
+  for (const x of [-2, 2]) add(PART.box, { x, y: height + 0.45, z: d / 2 - 1.45, w: 0.25, h: 1.5, d: 0.2, style: STYLE.metal, color: palette.steel });
   return {
-    top: height + 1.5 + (screenWidth * 9) / 16,
-    sign: { y: 5.4, z: d / 2 + 0.2, width: Math.min(w - 2, 10) },
-    screen: { y: height + 1.5 + (screenWidth * 9) / 32, z: d / 2 - 1.2, width: screenWidth },
-    door: { z: d / 2, width: 6, height: 3.6, y: 0 },
+    top: height + 1.95 + (screenWidth * 9) / 16,
+    sign: { y: 5.5, z: d / 2 + 0.2, width: Math.min(w - 2, 10) },
+    screen: { y: height + 1.95 + (screenWidth * 9) / 32, z: d / 2 - 1.2, width: screenWidth },
+    // The garage is its own doorway.
+    door: { z: d / 2, width: bay, height: mouth, y: 0, built: true },
     eye: 4.2,
     frontY: 5.6,
   };
@@ -255,7 +307,7 @@ function studio({ add, footprint, palette, random, detail }) {
   }
   // A billboard on the roof for the project's picture.
   const screenWidth = Math.min(w - 2, 10);
-  for (const x of [-screenWidth * 0.3, screenWidth * 0.3]) add(PART.box, { x, y: height + 0.4, z: d / 2 - 2, w: 0.3, h: 1.6, d: 0.3, style: STYLE.metal, color: palette.steel });
+  for (const x of [-screenWidth * 0.3, screenWidth * 0.3]) add(PART.box, { x, y: height + 0.4, z: d / 2 - 2.05, w: 0.3, h: 1.6, d: 0.22, style: STYLE.metal, color: palette.steel });
   return {
     top: height + 2 + (screenWidth * 9) / 16,
     sign: { y: showroom + 0.75, z: d / 2 + 2.15, width: Math.min(w - 2, 11) },
@@ -266,12 +318,14 @@ function studio({ add, footprint, palette, random, detail }) {
   };
 }
 
-function lab({ add, footprint, palette, random, detail, stop, color }) {
+function lab({ add, footprint, palette, random, detail, stop, color, shops }) {
   const { width: w, depth: d } = footprint;
   const podium = SHOP_FLOOR + FLOOR;
   const panel = palette.walls.new[0];
   const tint = color.clone().multiplyScalar(0.45);
-  add(PART.box, { w, h: podium, d, style: STYLE.shop, seed: random() * 90, lit: 0.6, pattern: WINDOWS.office, color: panel.clone().multiplyScalar(0.75) });
+  const shopSeed = random() * 90;
+  add(PART.box, { w, h: podium, d, style: STYLE.shop, seed: shopSeed, lit: 0.6, pattern: WINDOWS.office, color: panel.clone().multiplyScalar(0.75) });
+  shops(shopSeed, w, d / 2);
   // A round glass tower beside a white wing, capped by a stepped dome and antennas.
   const towerSize = Math.min(w, d) * 0.72;
   const floors = stop.inProgress ? 3 + Math.round((stop.progress / 100) * 4) : 7;
@@ -292,7 +346,7 @@ function lab({ add, footprint, palette, random, detail, stop, color }) {
   return {
     top: y,
     sign: { y: podium - 1.5, z: d / 2 + 0.2, width: Math.min(w - 2, 11) },
-    screen: { y: podium + 1.2 + (screenWidth * 9) / 32, z: d / 2 + 0.1, width: screenWidth, x: w * 0.12 },
+    screen: { y: podium + 1.2 + (screenWidth * 9) / 32, z: d / 2 + 0.34, width: screenWidth, x: w * 0.12 },
     door: { z: d / 2, width: 3.6, height: 3.2, y: 0 },
     eye: 5.5,
     frontY: podium - 1,
@@ -300,12 +354,14 @@ function lab({ add, footprint, palette, random, detail, stop, color }) {
   };
 }
 
-function tower({ add, group, footprint, palette, random, stop, color, glows }) {
+function tower({ add, group, footprint, palette, random, stop, color, glows, shops }) {
   const { width: w, depth: d } = footprint;
   const podium = SHOP_FLOOR + 3.7 * 2;
   const wall = palette.walls.centre[1];
   const glass = color.clone().lerp(palette.blue, 0.5).multiplyScalar(0.42);
-  add(PART.box, { w, h: podium, d, style: STYLE.shop, seed: random() * 90, lit: 0.55, pattern: WINDOWS.office, color: wall });
+  const shopSeed = random() * 90;
+  add(PART.box, { w, h: podium, d, style: STYLE.shop, seed: shopSeed, lit: 0.55, pattern: WINDOWS.office, color: wall });
+  shops(shopSeed, w, d / 2);
   add(PART.box, { y: podium, w: w + 0.4, h: 0.5, d: d + 0.4, style: STYLE.plain, color: palette.stone[1] });
   add(PART.box, { y: 4.2, z: d / 2 + 1.4, w: w * 0.6, h: 0.32, d: 2.8, style: STYLE.metal, color: palette.darkSteel });
   add(PART.box, { y: 4.15, z: d / 2 + 1.4, w: w * 0.6 - 0.3, h: 0.06, d: 2.6, style: STYLE.neon, lit: 1.2, color: palette.warm });
@@ -345,7 +401,7 @@ function tower({ add, group, footprint, palette, random, stop, color, glows }) {
   return {
     top: y,
     sign: { y: podium - 1.6, z: d / 2 + 0.2, width: Math.min(w - 2, 11.5) },
-    screen: { y: podium + 1.8 + (screenWidth * 9) / 32, z: td / 2 + 0.16, width: Math.min(screenWidth, tw - 2) },
+    screen: { y: podium + 1.8 + (screenWidth * 9) / 32, z: td / 2 + 0.34, width: Math.min(screenWidth, tw - 2) },
     door: { z: d / 2, width: 5, height: 3.6, y: 0 },
     eye: 6,
     frontY: podium - 1,
@@ -438,7 +494,7 @@ function academy({ add, group, footprint, palette, random, color, shared }) {
   return {
     top: 66,
     sign: { y: 17.7, z: front + 2.95, width: 14 },
-    screen: { y: 26, z: -1 + 5.56, width: 8.5 },
+    screen: { y: 26, z: -1 + 5.5 + 0.34, width: 8.5 },
     door: { z: front, width: 4, height: 5.2, y: 1.35 },
     eye: 6.5,
     frontY: 14.5,
@@ -447,13 +503,15 @@ function academy({ add, group, footprint, palette, random, color, shared }) {
   };
 }
 
-function bank({ add, group, footprint, palette, random, color, tickers, glows }) {
+function bank({ add, group, footprint, palette, random, color, tickers, glows, shops }) {
   const { depth: d } = footprint;
   const front = d / 2;
   const height = 104;
   const glass = color.clone().multiplyScalar(0.35);
   const wall = palette.walls.centre[0];
-  add(PART.box, { w: 26, h: 12.8, d: 20, style: STYLE.shop, seed: random() * 90, lit: 0.62, pattern: WINDOWS.office, color: wall });
+  const shopSeed = random() * 90;
+  add(PART.box, { w: 26, h: 12.8, d: 20, style: STYLE.shop, seed: shopSeed, lit: 0.62, pattern: WINDOWS.office, color: wall });
+  shops(shopSeed, 26, 10);
   add(PART.box, { y: 12.8, w: 26.4, h: 0.6, d: 20.4, style: STYLE.plain, color: palette.stone[1] });
   add(PART.box, { y: 4.4, z: front + 1.6, w: 12, h: 0.35, d: 3.2, style: STYLE.metal, color: palette.darkSteel });
   add(PART.box, { y: 4.35, z: front + 1.6, w: 11.6, h: 0.06, d: 3, style: STYLE.neon, lit: 1.2, color: palette.warm });
@@ -495,7 +553,7 @@ function bank({ add, group, footprint, palette, random, color, tickers, glows })
   return {
     top: height + 8,
     sign: { y: 10.2, z: front + 0.22, width: 11.5 },
-    screen: { y: 18.5, z: 6.66, width: 10.5, x: -3 },
+    screen: { y: 18.5, z: 6.5 + 0.34, width: 10.5, x: -3 },
     door: { z: front, width: 5, height: 3.6, y: 0 },
     eye: 6,
     frontY: 10,
@@ -523,7 +581,7 @@ export function registerBuildingType(key, generator) {
  * (see createRig) and an update function for the moving parts.
  */
 export function buildPlaces(context) {
-  const { scene, shared, kit, palette, random, detail, sites, stops, upcoming, decals, glows, bollards, family, rtl, text, imageFor, life, colors } = context;
+  const { scene, shared, kit, palette, random, detail, sites, stops, upcoming, lights, glows, bollards, family, rtl, text, imageFor, life, colors } = context;
   const tickers = [];
   const groups = [];
   const loader = new TextureLoader();
@@ -546,8 +604,9 @@ export function buildPlaces(context) {
   const addScreen = (site, stop, color, { x = 0, y, z, width }) => {
     const height = (width * 9) / 16;
     site.add(PART.box, { x, y: y - height / 2 - 0.25, z: z - 0.2, w: width + 0.5, h: height + 0.5, d: 0.25, style: STYLE.metal, color: palette.darkSteel });
+    site.add(PART.box, { x, y: y - height / 2 - 0.08, z: z - 0.11, w: width + 0.16, h: height + 0.16, d: 0.08, style: STYLE.neon, lit: 0.9, color });
     const fallback = canvasTexture(drawScreenFallback({ year: stop.year, color }));
-    const picture = at(new Mesh(new PlaneGeometry(width, height), new MeshBasicMaterial({ map: fallback })), x, y, z - 0.06);
+    const picture = at(new Mesh(new PlaneGeometry(width, height), new MeshBasicMaterial({ map: fallback })), x, y, z - 0.03);
     site.group.add(picture);
     const url = imageFor(stop);
     if (url) {
@@ -572,7 +631,7 @@ export function buildPlaces(context) {
         () => {}
       );
     }
-    decals.add({ ...flat(site.world(x, 0, z)), width: width * 1.2, length: 12, color, strength: 0.14, streak: true, towardX: site.facing.x, towardZ: site.facing.z });
+    lights.add({ ...flat(site.world(x, 0, z + 4)), radius: 9, color, strength: 0.4 });
     return { centre: site.world(x, y, z), normal: new Vector3(site.facing.x, 0, site.facing.z), width, height };
   };
 
@@ -584,7 +643,23 @@ export function buildPlaces(context) {
     const handle = openSite(site);
     const generator = TYPES[stop.type] ?? TYPES.studio;
     const placed = [];
-    const layout = generator({ add: handle.add, group: handle.group, footprint: site.footprint, palette, random, detail, stop, color, tickers, glows: placed, shared });
+    const frame = { x: site.x, z: site.z, turn: site.turn };
+    const layout = generator({
+      add: handle.add,
+      group: handle.group,
+      footprint: site.footprint,
+      palette,
+      random,
+      detail,
+      stop,
+      color,
+      tickers,
+      glows: placed,
+      shared,
+      // A light at a point of the building's own frame, and the light of a row of shops along its front.
+      light: ({ x, z, ...rest }) => lights.add({ ...flat(handle.world(x, 0, z)), ...rest }),
+      shops: (seed, width, front) => shopLights(lights, frame, palette, seed, width, front),
+    });
     for (const glow of placed) glows.add({ ...handle.world(glow.local.x, glow.local.y, glow.local.z), color: glow.color, size: glow.size, strength: glow.strength, blink: glow.blink, phase: random() * 6 });
 
     // The name plate over the entrance.
@@ -600,19 +675,56 @@ export function buildPlaces(context) {
 
     const screen = addScreen(handle, stop, color, layout.screen);
 
-    // A lit doorway, its light spilling onto the square, and the stop's number on the ground.
+    // The entrance: glass doors with the lobby lit behind them, their light spilling out.
     const { door } = layout;
-    handle.add(PART.box, { y: door.y, z: door.z + 0.03, w: door.width, h: door.height, d: 0.1, style: STYLE.neon, lit: 0.9, color: palette.warm });
-    const doorway = handle.world(0, 0, door.z + 0.5);
-    decals.add({ ...flat(doorway), width: door.width + 3, length: 11, color: palette.warm, strength: 0.3, streak: true, towardX: handle.facing.x, towardZ: handle.facing.z });
-    const plazaOffset = site.footprint.depth / 2 + site.footprint.apron + 5.5;
-    handle.group.add(at(groundMark(drawStopMarker({ number: pad(index + 1), color }), 8.5), 0, 0.18, plazaOffset));
-    decals.add({ ...flat(handle.world(0, 0, plazaOffset)), width: 24, color, strength: 0.1 });
-    for (let step = 0; step < 6; step += 1) {
-      const angle = ((-100 + step * 40) * Math.PI) / 180;
-      const spot = handle.world(Math.sin(angle) * 5.2, 0.15, plazaOffset + Math.cos(angle) * 5.2);
-      bollards.add({ x: spot.x, y: 0.15, z: spot.z, color: bright(color, 2) });
-      glows.add({ x: spot.x, y: 1.15, z: spot.z, color, size: 1.4, strength: 0.5 });
+    if (!door.built) {
+      handle.add(PART.box, { y: door.y, z: door.z + 0.1, w: door.width + 0.3, h: door.height + 0.16, d: 0.24, style: STYLE.entrance, seed: random() * 90, lit: 1, color: palette.darkSteel });
+      lights.add({ ...flat(handle.world(0, 0, door.z + 2.6)), radius: 4.5 + door.width * 0.6, color: palette.warm, strength: 0.95 });
+    }
+
+    // The ground before the building, and the stop's number on it.
+    const place = placeById(stop.place);
+    const front = site.footprint.depth / 2 + site.footprint.apron;
+    let plazaOffset = front + 5.5;
+    let markSize = 8.5;
+    const posts = [];
+    if (place.at === "main") {
+      // A forecourt of stone slabs from the sidewalk back past the building, a finger higher than the sidewalk it meets.
+      const corners = [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ].map(([sx, sz]) => handle.world((sx * site.footprint.width) / 2, 0, sz > 0 ? front : -site.footprint.depth / 2));
+      const zs = corners.map((corner) => corner.z);
+      const reach = Math.max(...corners.map((corner) => Math.abs(corner.x)));
+      const from = facadeOf("main") - 0.2;
+      const to = Math.min(reach + 3, 35);
+      const zFrom = Math.max(...zs) + 21;
+      const zTo = Math.min(...zs) - 2;
+      kit.add(PART.box, { x: (place.side * (from + to)) / 2, z: (zFrom + zTo) / 2, w: to - from, h: 0.162, d: zFrom - zTo, style: STYLE.pavement, pattern: PAVING.slabs, color: palette.pavement });
+      for (let step = 0; step < 6; step += 1) {
+        const angle = ((-100 + step * 40) * Math.PI) / 180;
+        posts.push(handle.world(Math.sin(angle) * 5.2, 0, plazaOffset + Math.cos(angle) * 5.2));
+      }
+    } else {
+      // On a square, the number lies on the paved ring between the building and the roundabout's road,
+      // and the posts follow the kerb of that road.
+      const ring = roundaboutOf(sideStreetById(place.at));
+      const toCentre = ring.square + 1.5;
+      const depth = toCentre - ring.outer;
+      markSize = Math.min(8.5, depth - 0.3);
+      plazaOffset = front + depth / 2;
+      for (let step = 0; step < 6; step += 1) {
+        const across = (step - 2.5) * 2.4;
+        posts.push(handle.world(across, 0, front + toCentre - Math.sqrt(ring.outer ** 2 - across ** 2) - 0.6));
+      }
+    }
+    handle.group.add(at(groundMark(drawStopMarker({ number: pad(index + 1), color }), markSize), 0, 0.19, plazaOffset));
+    lights.add({ ...flat(handle.world(0, 0, plazaOffset)), radius: 11, color, strength: 0.32 });
+    for (const spot of posts) {
+      bollards.add({ x: spot.x, y: 0.16, z: spot.z, color: bright(color, 2) });
+      glows.add({ x: spot.x, y: 1.0, z: spot.z, color, size: 1.4, strength: 0.5 });
     }
 
     // A small hologram over the roof, turning slowly.
@@ -658,9 +770,10 @@ export function buildPlaces(context) {
     );
     board.renderOrder = 3;
     handle.group.add(at(board, 0, Math.max(built + 2.4, 6.5), 6.8));
-    // A fence along the front, with work lights.
+    // A fence along the front, with work lights, and barriers before it.
     handle.add(PART.plane, { z: 8, w: 14, h: 2, d: 0.05, style: STYLE.railing, color: palette.amber.clone().multiplyScalar(0.4) });
-    decals.add({ ...flat(handle.world(0, 0, 9)), width: 18, color, strength: 0.12 });
+    if (detail) for (const x of [-4.5, 4.5]) barrier(standing(kit, { ...flat(handle.world(x, 0, 9.2)), y: 0.15, turn: site.turn }));
+    lights.add({ ...flat(handle.world(0, 0, 9)), radius: 9, color, strength: 0.4 });
   });
 
   // --- The plaza at the end: the outline of a tower still to be built ---

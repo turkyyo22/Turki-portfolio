@@ -9,7 +9,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import Loader from "@/components/Loader";
 import { assessDevice, probeDevice, savedQuality, saveQuality } from "@/lib/explore/device";
 import { createDirector } from "@/lib/explore/director";
-import { legCount, progressOfStop } from "@/lib/explore/plan";
+import { PIXELS_PER_METRE, SHOP_NAMES, createTour } from "@/lib/explore/plan";
 import { createCitySound, savedSound, saveSound } from "@/lib/explore/sound";
 import ExploreDetail from "./ExploreDetail";
 import ExploreHud from "./ExploreHud";
@@ -118,6 +118,8 @@ export default function ExploreMode({ lang, dict, city }) {
   const [detail, setDetail] = useState(null); // { index, shown, note }
   const [lookedNow, setLookedNow] = useState(false);
   const [director] = useState(() => createDirector({ dict: dict.guide, stops: city.stops }));
+  // How scrolling maps onto the route (the engine builds the same one for the camera).
+  const [tour] = useState(() => createTour(city.route.stops, city.route.length));
 
   const hostRef = useRef(null);
   const bubbleRef = useRef(null);
@@ -132,7 +134,8 @@ export default function ExploreMode({ lang, dict, city }) {
   const router = useRouter();
 
   const total = city.stops.length;
-  const legs = legCount(total);
+  // The page is as long as the route, so the same scroll always covers the same ground.
+  const travel = Math.round(tour.scrollLength * PIXELS_PER_METRE);
   const verdict = device?.verdict;
   const started = verdict === "go";
   const quality = chosenQuality || device?.saved || device?.quality || "low";
@@ -172,13 +175,13 @@ export default function ExploreMode({ lang, dict, city }) {
   const flyToStop = (index, onArrive) => {
     flightRef.current?.();
     const range = document.documentElement.scrollHeight - window.innerHeight;
-    const targetY = (index < 0 ? 0 : progressOfStop(index, total)) * range;
-    const legsAway = (Math.abs(targetY - window.scrollY) / Math.max(1, range)) * legs;
-    if (legsAway < 0.01) {
+    const targetY = tour.progressOfStop(index) * range;
+    const metresAway = (Math.abs(targetY - window.scrollY) / Math.max(1, range)) * tour.scrollLength;
+    if (metresAway < 1) {
       onArrive?.();
       return;
     }
-    const duration = Math.min(4500, Math.max(900, legsAway * 1500));
+    const duration = Math.min(4500, Math.max(900, metresAway * 8));
     soundRef.current?.whoosh(Math.min(2, duration / 1000));
     flightRef.current = animateScrollTo(targetY, duration, onArrive);
   };
@@ -334,7 +337,7 @@ export default function ExploreMode({ lang, dict, city }) {
     // The signs in the city are drawn with the page's font. Arabic letters come
     // in a separate font file, so ask for the exact text that will be drawn.
     const family = getComputedStyle(document.body).fontFamily;
-    const drawn = [...city.stops.map((stop) => stop.title), ...city.upcoming.map((item) => item.name), ...dict.sign.finale, dict.sign.gate].join(" ");
+    const drawn = [...city.stops.map((stop) => stop.title), ...city.upcoming.map((item) => item.name), ...dict.sign.finale, dict.sign.gate, ...SHOP_NAMES].join(" ");
     const fonts = Promise.race([document.fonts.load(`700 48px ${family}`, drawn), new Promise((resolve) => window.setTimeout(resolve, 2500))]).catch(() => {});
 
     // A resized copy of the project's picture from the site's own image service
@@ -448,7 +451,7 @@ export default function ExploreMode({ lang, dict, city }) {
   return (
     <main className="relative">
       <h1 className="sr-only">{dict.heading}</h1>
-      {running && <div aria-hidden="true" className="explore-track" style={{ "--legs": legs }} />}
+      {running && <div aria-hidden="true" className="explore-track" style={{ "--travel": travel }} />}
       <div ref={hostRef} className="fixed inset-0 z-0 bg-deep" />
       {/* Darker corners keep the eye on the street and the text readable. */}
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[1] bg-[radial-gradient(ellipse_at_center,transparent_55%,rgba(2,4,12,0.6)_100%)]" />

@@ -78,9 +78,9 @@ function splitStretch(from, to, district, random, plot) {
   }
 }
 
-export function lineStreets({ kit, random, palette, detail, glows, placeSites, lotsInUse, emptyEnds }) {
+export function lineStreets({ kit, random, palette, detail, glows, lights, placeSites, lotsInUse, emptyEnds }) {
   const fronts = [];
-  const options = { random, palette, detail, glows };
+  const options = { random, palette, detail, glows, lights };
   const mainFacade = facadeOf("main");
 
   // --- The main street's front row ---

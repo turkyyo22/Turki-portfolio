@@ -6,6 +6,8 @@ import {
   LANDMARKS,
   LOTS,
   PLACES,
+  SIDE_STREETS,
+  STREETS,
   TOUR_START_Z,
   assignPlaces,
   buildCity,
@@ -17,6 +19,7 @@ import {
   lotSite,
   placeById,
   planRoute,
+  roundaboutOf,
   sideStreetById,
   siteOf,
 } from "./city";
@@ -174,6 +177,32 @@ describe("siteOf", () => {
   });
 });
 
+describe("roundaboutOf", () => {
+  it("keeps the route's loop on the road, between the island and the paved square", () => {
+    const rounds = SIDE_STREETS.filter((street) => street.end !== "stub");
+    expect(rounds.length).toBeGreaterThan(0);
+    for (const street of rounds) {
+      const ring = roundaboutOf(street);
+      expect(ring.island).toBeGreaterThan(2);
+      expect(ring.island).toBeLessThan(street.loop);
+      expect(ring.outer).toBeGreaterThan(street.loop);
+      expect(ring.outer).toBeLessThan(ring.square);
+      // The loop runs down the middle of a road at least as wide as the street that feeds it.
+      expect(street.loop - ring.island).toBeCloseTo(ring.outer - street.loop, 6);
+      expect(ring.outer - ring.island).toBeGreaterThanOrEqual(STREETS[street.street].half);
+    }
+  });
+
+  it("leaves room between the road and the building at the end of the street", () => {
+    for (const place of [...PLACES, ...LANDMARKS].filter((item) => item.at !== "main")) {
+      const street = sideStreetById(place.at);
+      const site = siteOf(place, footprintOf(place, "large"));
+      const front = Math.abs(site.x) - site.footprint.depth / 2 - site.footprint.apron;
+      expect(front - street.reach - roundaboutOf(street).outer).toBeGreaterThan(4);
+    }
+  });
+});
+
 describe("districts", () => {
   it("grow grander from the gate to the centre and ease off after it", () => {
     expect(grandnessAt(TOUR_START_Z)).toBe(0);
@@ -227,10 +256,19 @@ describe("buildCity", () => {
     expect(grad.type).toBe("academy");
   });
 
+  it("says where each stop lies on the route, for the page's scrolling", () => {
+    const { path, order } = planRoute(new Set(assignPlaces(POSTS).keys()));
+    expect(city.route.length).toBeCloseTo(path.length, 6);
+    expect(city.route.stops).toEqual(order.map((id) => path.marks[id]));
+    expect(city.route.stops).toHaveLength(city.stops.length);
+  });
+
   it("copes with no content", () => {
     const empty = buildCity();
     expect(empty.stops).toEqual([]);
     expect(empty.upcoming).toEqual([]);
     expect(empty.signs).toEqual([]);
+    expect(empty.route.stops).toEqual([]);
+    expect(empty.route.length).toBeCloseTo(TOUR_START_Z - FINALE_Z, 6);
   });
 });

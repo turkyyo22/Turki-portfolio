@@ -211,12 +211,13 @@ body {
   box-shadow: 0 0 6px 1px rgb(var(--accent-cyan-rgb) / 0.5);
 }
 
-/* Explore mode (the 3D city). The page is this tall so that scrolling it flies
-   the camera down the street: one stretch per stop. "lvh" keeps the height steady
+/* Explore mode (the 3D city). The page is this tall so that scrolling it drives
+   the camera along the route: one screen, plus "--travel" pixels of scrolling
+   (the route's length, see createTour in plan.js). "lvh" keeps the height steady
    on phones, where the address bar slides in and out; "vh" is the fallback. */
 .explore-track {
-  height: calc(var(--legs, 8) * 140vh);
-  height: calc(var(--legs, 8) * 140lvh);
+  height: calc(100vh + var(--travel, 20000) * 1px);
+  height: calc(100lvh + var(--travel, 20000) * 1px);
 }
 
 html:has(.explore-track) {

@@ -49,9 +49,12 @@ export function createPalette() {
     streetLight: new Color(0.62, 0.38, 0.22),
 
     // Surfaces
-    asphalt: color("#10131d"),
-    pavement: color("#3a3f4f"),
-    kerb: color("#5d6274"),
+    asphalt: color("#141720"),
+    pavement: color("#6b6f7c"),
+    kerb: color("#8a8d98"),
+    concrete: color("#70747f"),
+    wood: color("#6b4a2e"),
+    rubber: color("#0c0d10"),
     steel: color("#2a3142"),
     darkSteel: color("#161b27"),
     glass: color("#0a1324"),
